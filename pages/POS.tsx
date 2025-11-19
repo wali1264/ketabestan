@@ -708,35 +708,11 @@ const POS: React.FC = () => {
                             {/* Customer Selector */}
                             <div className="relative">
                                 <button 
-                                    onClick={() => setIsMobileCustomerMenuOpen(!isMobileCustomerMenuOpen)} 
+                                    onClick={() => setIsMobileCustomerMenuOpen(true)} 
                                     className={`p-2 rounded-lg border transition-colors ${selectedCustomerId ? 'bg-blue-100 border-blue-300 text-blue-700' : 'bg-white border-gray-300 text-gray-600'}`}
                                 >
                                     <UserGroupIcon className="w-6 h-6" />
                                 </button>
-                                
-                                {isMobileCustomerMenuOpen && (
-                                    <>
-                                        <div className="fixed inset-0 z-30 bg-black/20" onClick={() => setIsMobileCustomerMenuOpen(false)}></div>
-                                        <div className="absolute bottom-full left-0 mb-2 w-56 bg-white rounded-xl shadow-xl border border-gray-200 z-40 max-h-64 overflow-y-auto">
-                                            <div className="p-2 border-b bg-gray-50 text-xs font-bold text-slate-500 sticky top-0">انتخاب مشتری</div>
-                                            <div 
-                                                onClick={() => { setSelectedCustomerId(''); setIsMobileCustomerMenuOpen(false); }}
-                                                className={`p-3 text-sm font-semibold cursor-pointer border-b ${selectedCustomerId === '' ? 'bg-blue-50 text-blue-600' : 'text-slate-700 hover:bg-gray-50'}`}
-                                            >
-                                                فروش نقدی (پیش‌فرض)
-                                            </div>
-                                            {customers.map((c: Customer) => (
-                                                 <div 
-                                                    key={c.id}
-                                                    onClick={() => { setSelectedCustomerId(c.id); setIsMobileCustomerMenuOpen(false); }}
-                                                    className={`p-3 text-sm font-semibold cursor-pointer border-b last:border-0 ${selectedCustomerId === c.id ? 'bg-blue-50 text-blue-600' : 'text-slate-700 hover:bg-gray-50'}`}
-                                                >
-                                                    {c.name}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </>
-                                )}
                             </div>
 
                             {/* Checkout Button */}
@@ -768,6 +744,58 @@ const POS: React.FC = () => {
                     </button>
                  </div>
             </div>
+            
+            {/* Mobile Customer Selection Modal (Bottom Sheet) */}
+            {isMobileCustomerMenuOpen && (
+                <div className="fixed inset-0 z-[150] md:hidden flex items-end justify-center">
+                    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity" onClick={() => setIsMobileCustomerMenuOpen(false)}></div>
+                    <div className="bg-white w-full rounded-t-2xl shadow-2xl z-10 max-h-[75vh] flex flex-col animate-slide-up-mobile overflow-hidden">
+                        <style>{`
+                            @keyframes slide-up-mobile {
+                                from { transform: translateY(100%); }
+                                to { transform: translateY(0); }
+                            }
+                            .animate-slide-up-mobile { animation: slide-up-mobile 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+                        `}</style>
+                        <div className="flex justify-between items-center p-4 border-b bg-slate-50">
+                            <h3 className="font-bold text-lg text-slate-800">انتخاب مشتری</h3>
+                            <button onClick={() => setIsMobileCustomerMenuOpen(false)} className="p-2 bg-slate-200 rounded-full text-slate-600">
+                                <XIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="flex-grow overflow-y-auto p-4 space-y-3">
+                             <div 
+                                onClick={() => { setSelectedCustomerId(''); setIsMobileCustomerMenuOpen(false); }}
+                                className={`p-4 rounded-xl flex items-center justify-between cursor-pointer border-2 transition-all ${selectedCustomerId === '' ? 'bg-blue-50 border-blue-500 shadow-md' : 'bg-white border-slate-100 hover:bg-slate-50'}`}
+                            >
+                                <div className="flex items-center gap-3">
+                                    <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${selectedCustomerId === '' ? 'border-blue-600 bg-blue-600' : 'border-slate-400'}`}>
+                                        {selectedCustomerId === '' && <div className="w-2 h-2 bg-white rounded-full"></div>}
+                                    </div>
+                                    <span className={`font-bold ${selectedCustomerId === '' ? 'text-blue-700' : 'text-slate-700'}`}>فروش نقدی (پیش‌فرض)</span>
+                                </div>
+                            </div>
+                            {customers.map((c: Customer) => (
+                                <div 
+                                    key={c.id}
+                                    onClick={() => { setSelectedCustomerId(c.id); setIsMobileCustomerMenuOpen(false); }}
+                                    className={`p-4 rounded-xl flex items-center justify-between cursor-pointer border-2 transition-all ${selectedCustomerId === c.id ? 'bg-blue-50 border-blue-500 shadow-md' : 'bg-white border-slate-100 hover:bg-slate-50'}`}
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${selectedCustomerId === c.id ? 'border-blue-600 bg-blue-600' : 'border-slate-400'}`}>
+                                            {selectedCustomerId === c.id && <div className="w-2 h-2 bg-white rounded-full"></div>}
+                                        </div>
+                                        <span className={`font-bold ${selectedCustomerId === c.id ? 'text-blue-700' : 'text-slate-700'}`}>{c.name}</span>
+                                    </div>
+                                </div>
+                            ))}
+                             {customers.length === 0 && (
+                                <p className="text-center text-slate-400 py-8">مشتری تعریف نشده است.</p>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
 
         </div>
     );

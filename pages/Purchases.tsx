@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import type { PurchaseInvoice, PurchaseInvoiceItem, SpeechRecognition, SpeechRecognitionEvent, SpeechRecognitionErrorEvent, Product } from '../types';
 import { useAppContext } from '../AppContext';
@@ -478,7 +479,7 @@ const Purchases: React.FC = () => {
                                                 <button onClick={() => handleRemoveItem(index)} className="text-red-500"><TrashIcon className="w-5 h-5"/></button>
                                             </div>
                                             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                                 <div>
+                                                 <div className="col-span-2 md:col-span-1">
                                                     <label className="text-xs font-semibold text-slate-500">تعداد</label>
                                                     <PackageUnitInput
                                                         totalUnits={item.quantity}
@@ -486,15 +487,15 @@ const Purchases: React.FC = () => {
                                                         onChange={(total) => handleItemChange(index, 'quantity', total)}
                                                     />
                                                 </div>
-                                                <div>
+                                                <div className="col-span-1">
                                                     <label className="text-xs font-semibold text-slate-500">قیمت خرید</label>
                                                     <input type="text" name="purchasePrice" data-index={index} value={item.purchasePrice} onChange={e => handleItemChange(index, 'purchasePrice', e.target.value)} placeholder="0" className="w-full p-2 bg-white/80 border border-gray-300 rounded-md form-input" />
                                                 </div>
-                                                <div>
+                                                <div className="col-span-1">
                                                     <label className="text-xs font-semibold text-slate-500">شماره لات</label>
                                                     <input type="text" name="lotNumber" data-index={index} value={item.lotNumber} onChange={e => handleItemChange(index, 'lotNumber', e.target.value)} placeholder="-" className="w-full p-2 bg-white/80 border border-gray-300 rounded-md form-input" />
                                                 </div>
-                                                <div>
+                                                <div className="col-span-2 md:col-span-1">
                                                    <label className="text-xs font-semibold text-slate-500">انقضا</label>
                                                    {item.showExpiry ? (
                                                     <input type="date" value={item.expiryDate} onChange={e => handleItemChange(index, 'expiryDate', e.target.value)} className="w-full p-2 bg-white/80 border border-gray-300 rounded-md text-sm form-input"/>

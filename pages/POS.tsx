@@ -108,7 +108,7 @@ const ProductSide: React.FC<{
         </div>
         
         {/* Mobile Mini Cart Preview (only visible in Product View) */}
-        <div className="md:hidden mt-2 pt-2 border-t border-gray-200/60 flex-grow flex flex-col min-h-0 pb-16">
+        <div className="md:hidden mt-2 pt-2 border-t border-gray-200/60 flex-grow flex flex-col min-h-0 pb-28">
              {cart.length > 0 ? (
                  <div className="space-y-2 overflow-y-auto px-1">
                      {cart.map((item: CartItem) => (
@@ -147,11 +147,7 @@ const CartSide: React.FC<any> = ({
     handlePrintInvoice, handleEditInvoice, storeSettings, setMobileView, addToCart, handleOpenReturnModal
 }) => {
     
-    const [isMobileCustomerMenuOpen, setIsMobileCustomerMenuOpen] = useState(false);
-    
-    const selectedCustomerName = useMemo(() => {
-        return customers.find((c: any) => c.id === selectedCustomerId)?.name || 'فروش نقدی';
-    }, [selectedCustomerId, customers]);
+    // Logic for mobile footer removed from here and moved to parent POS component for unified handling
 
     return (
      <>
@@ -193,8 +189,8 @@ const CartSide: React.FC<any> = ({
             )}
             
             {/* Cart Items List */}
-            {/* FIX: Increased padding-bottom (pb-32) to prevent last items from being hidden behind the two bottom fixed bars */}
-            <div className="flex-grow overflow-y-auto -mx-4 px-4 pb-32 md:pb-4">
+            {/* FIX: Increased padding-bottom to allow scrolling past fixed footer */}
+            <div className="flex-grow overflow-y-auto -mx-4 px-4 pb-40 md:pb-4">
                 {cart.length === 0 ? (
                     <div className="flex items-center justify-center h-40 md:h-full">
                         <p className="text-slate-500">سبد خرید خالی است.</p>
@@ -240,68 +236,11 @@ const CartSide: React.FC<any> = ({
                     </button>
                 </div>
             </div>
-
-            {/* Compact Fixed Footer for Mobile - FIX: Increased Z-Index to 40 */}
-             <div className="md:hidden fixed bottom-[50px] left-0 right-0 bg-white border-t-2 border-gray-200 px-3 py-2 z-40 shadow-[0_-4px_20px_rgba(0,0,0,0.1)] h-14 flex items-center justify-between gap-2">
-                {/* Total Amount (Left - ~50%) */}
-                <div className="flex flex-col justify-center w-[45%]">
-                    <span className="text-[10px] text-slate-500 font-bold">مبلغ کل</span>
-                    <span className="text-lg font-extrabold text-blue-700 truncate">{formatCurrency(totalAmount, storeSettings)}</span>
-                </div>
-
-                {/* Right Side Controls */}
-                <div className="flex items-center gap-2 w-[55%] justify-end">
-                     {/* Customer Selector Icon */}
-                     <div className="relative">
-                        <button 
-                            onClick={() => setIsMobileCustomerMenuOpen(!isMobileCustomerMenuOpen)} 
-                            className={`p-2 rounded-lg border transition-colors ${selectedCustomerId ? 'bg-blue-100 border-blue-300 text-blue-700' : 'bg-gray-100 border-gray-300 text-gray-600'}`}
-                        >
-                            <UserGroupIcon className="w-6 h-6" />
-                        </button>
-                        
-                        {/* Pop-up Menu for Customer Selection */}
-                        {isMobileCustomerMenuOpen && (
-                            <>
-                                <div className="fixed inset-0 z-30 bg-black/20" onClick={() => setIsMobileCustomerMenuOpen(false)}></div>
-                                <div className="absolute bottom-full left-0 mb-2 w-48 bg-white rounded-xl shadow-xl border border-gray-200 z-40 max-h-60 overflow-y-auto">
-                                    <div className="p-2 border-b bg-gray-50 text-xs font-bold text-slate-500">انتخاب مشتری</div>
-                                    <div 
-                                        onClick={() => { setSelectedCustomerId(''); setIsMobileCustomerMenuOpen(false); }}
-                                        className={`p-3 text-sm font-semibold cursor-pointer border-b ${selectedCustomerId === '' ? 'bg-blue-50 text-blue-600' : 'text-slate-700 hover:bg-gray-50'}`}
-                                    >
-                                        فروش نقدی (پیش‌فرض)
-                                    </div>
-                                    {customers.map((c: Customer) => (
-                                         <div 
-                                            key={c.id}
-                                            onClick={() => { setSelectedCustomerId(c.id); setIsMobileCustomerMenuOpen(false); }}
-                                            className={`p-3 text-sm font-semibold cursor-pointer border-b last:border-0 ${selectedCustomerId === c.id ? 'bg-blue-50 text-blue-600' : 'text-slate-700 hover:bg-gray-50'}`}
-                                        >
-                                            {c.name}
-                                        </div>
-                                    ))}
-                                </div>
-                            </>
-                        )}
-                     </div>
-
-                     {/* Compact Save Button */}
-                    <button 
-                        onClick={completeSale} 
-                        className="flex-grow h-10 bg-blue-600 text-white rounded-lg shadow-md active:scale-95 transition-transform flex items-center justify-center gap-1 px-2 disabled:bg-gray-400"
-                        disabled={cart.length === 0 || !hasPermission('pos:create_invoice')}
-                    >
-                        <CheckIcon className="w-5 h-5" />
-                        <span className="font-bold text-sm">{editingSaleInvoiceId ? 'ویرایش' : 'ثبت'}</span>
-                    </button>
-                </div>
-            </div>
         </>
         )}
 
         {activeTab === 'invoices' && (
-            <div className="flex flex-col h-full pb-16">
+            <div className="flex flex-col h-full pb-28 md:pb-4">
                  <div className="mb-2 p-2 bg-slate-100/50 rounded-lg overflow-x-auto">
                     <DateRangeFilter onFilterChange={(start: Date, end: Date) => setInvoiceDateRange({ start, end })} />
                 </div>
@@ -335,7 +274,7 @@ const CartSide: React.FC<any> = ({
             </div>
         )}
         {activeTab === 'services' && (
-             <div className="flex-grow overflow-y-auto -mx-6 px-6 pb-16">
+             <div className="flex-grow overflow-y-auto -mx-6 px-6 pb-28 md:pb-4">
                  {services.length === 0 ? (
                     <div className="flex items-center justify-center h-40 text-slate-500 flex-col">
                         <p>خدمتی تعریف نشده.</p>
@@ -453,6 +392,7 @@ const POS: React.FC = () => {
     const barcodeTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [returnModalInvoice, setReturnModalInvoice] = useState<SaleInvoice | null>(null);
     const shouldRestartRecognition = useRef(false);
+    const [isMobileCustomerMenuOpen, setIsMobileCustomerMenuOpen] = useState(false);
 
 
     useEffect(() => { loadMemoImages(); }, []);
@@ -752,20 +692,81 @@ const POS: React.FC = () => {
                 </div>
             </div>
             
-             {/* Mobile Tab Navigator (Sticky Bottom) */}
-            <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-up flex justify-around p-2 z-50 h-[50px] items-center">
-                 <button onClick={() => setMobileView('products')} className={`flex flex-col items-center justify-center w-1/2 h-full transition-colors ${mobileView === 'products' ? 'text-blue-600' : 'text-slate-400'}`}>
-                     <PlusIcon className="w-6 h-6 mb-0.5" />
-                     <span className="text-xs font-bold">فروشگاه</span>
-                </button>
-                 <button onClick={() => setMobileView('cart')} className={`flex flex-col items-center justify-center w-1/2 h-full transition-colors relative ${mobileView === 'cart' ? 'text-blue-600' : 'text-slate-400'}`}>
-                    <div className="relative">
-                        <div className="w-6 h-6 border-2 border-current rounded-md flex items-center justify-center text-[10px] font-bold mb-0.5">
-                           {cart.length > 0 ? cart.length : ''}
+             {/* Unified Mobile Fixed Footer: Stacks Checkout Bar on Top of Navigation */}
+            <div className="md:hidden fixed bottom-0 left-0 right-0 z-[100] bg-white shadow-[0_-5px_15px_rgba(0,0,0,0.1)] flex flex-col">
+                 {/* Layer 1: Checkout Bar (Visible ONLY when in Cart view) */}
+                 {mobileView === 'cart' && activeTab === 'cart' && (
+                     <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200 bg-blue-50/50 h-16">
+                        {/* Left: Total Amount */}
+                        <div className="flex flex-col justify-center w-2/5">
+                            <span className="text-[10px] text-slate-500 font-bold">مبلغ کل</span>
+                            <span className="text-lg font-extrabold text-blue-700 truncate">{formatCurrency(totalAmount, storeSettings)}</span>
                         </div>
-                    </div>
-                    <span className="text-xs font-bold">سبد خرید</span>
-                </button>
+
+                        {/* Right: Customer & Save */}
+                        <div className="flex items-center gap-2 w-3/5 justify-end">
+                            {/* Customer Selector */}
+                            <div className="relative">
+                                <button 
+                                    onClick={() => setIsMobileCustomerMenuOpen(!isMobileCustomerMenuOpen)} 
+                                    className={`p-2 rounded-lg border transition-colors ${selectedCustomerId ? 'bg-blue-100 border-blue-300 text-blue-700' : 'bg-white border-gray-300 text-gray-600'}`}
+                                >
+                                    <UserGroupIcon className="w-6 h-6" />
+                                </button>
+                                
+                                {isMobileCustomerMenuOpen && (
+                                    <>
+                                        <div className="fixed inset-0 z-30 bg-black/20" onClick={() => setIsMobileCustomerMenuOpen(false)}></div>
+                                        <div className="absolute bottom-full left-0 mb-2 w-56 bg-white rounded-xl shadow-xl border border-gray-200 z-40 max-h-64 overflow-y-auto">
+                                            <div className="p-2 border-b bg-gray-50 text-xs font-bold text-slate-500 sticky top-0">انتخاب مشتری</div>
+                                            <div 
+                                                onClick={() => { setSelectedCustomerId(''); setIsMobileCustomerMenuOpen(false); }}
+                                                className={`p-3 text-sm font-semibold cursor-pointer border-b ${selectedCustomerId === '' ? 'bg-blue-50 text-blue-600' : 'text-slate-700 hover:bg-gray-50'}`}
+                                            >
+                                                فروش نقدی (پیش‌فرض)
+                                            </div>
+                                            {customers.map((c: Customer) => (
+                                                 <div 
+                                                    key={c.id}
+                                                    onClick={() => { setSelectedCustomerId(c.id); setIsMobileCustomerMenuOpen(false); }}
+                                                    className={`p-3 text-sm font-semibold cursor-pointer border-b last:border-0 ${selectedCustomerId === c.id ? 'bg-blue-50 text-blue-600' : 'text-slate-700 hover:bg-gray-50'}`}
+                                                >
+                                                    {c.name}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+
+                            {/* Checkout Button */}
+                            <button 
+                                onClick={completeSale} 
+                                className="flex-grow h-10 bg-blue-600 text-white rounded-lg shadow-md active:scale-95 transition-transform flex items-center justify-center gap-1 px-2 disabled:bg-gray-400"
+                                disabled={cart.length === 0 || !context.hasPermission('pos:create_invoice')}
+                            >
+                                <CheckIcon className="w-5 h-5" />
+                                <span className="font-bold text-sm">{context.editingSaleInvoiceId ? 'ویرایش' : 'ثبت'}</span>
+                            </button>
+                        </div>
+                     </div>
+                 )}
+
+                 {/* Layer 2: Navigation Tabs (Always Visible) */}
+                 <div className="flex justify-around items-center h-[50px] bg-white">
+                     <button onClick={() => setMobileView('products')} className={`flex flex-col items-center justify-center w-1/2 h-full transition-colors ${mobileView === 'products' ? 'text-blue-600 bg-blue-50/30' : 'text-slate-400'}`}>
+                         <PlusIcon className="w-6 h-6 mb-0.5" />
+                         <span className="text-xs font-bold">فروشگاه</span>
+                    </button>
+                     <button onClick={() => setMobileView('cart')} className={`flex flex-col items-center justify-center w-1/2 h-full transition-colors relative ${mobileView === 'cart' ? 'text-blue-600 bg-blue-50/30' : 'text-slate-400'}`}>
+                        <div className="relative">
+                            <div className={`w-6 h-6 border-2 ${mobileView === 'cart' ? 'border-blue-600' : 'border-slate-400'} rounded-md flex items-center justify-center text-[10px] font-bold mb-0.5`}>
+                               {cart.length > 0 ? cart.length : ''}
+                            </div>
+                        </div>
+                        <span className="text-xs font-bold">سبد خرید</span>
+                    </button>
+                 </div>
             </div>
 
         </div>

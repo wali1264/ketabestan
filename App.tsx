@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import Sidebar from './components/Sidebar';
 import Dashboard from './pages/Dashboard';
@@ -13,9 +14,9 @@ import type { Permission } from './types';
 import { MenuIcon } from './components/icons';
 
 const Header: React.FC<{ onMenuClick: () => void, activeViewLabel: string }> = ({ onMenuClick, activeViewLabel }) => (
-    <div className="md:hidden flex items-center justify-between p-4 bg-white/60 backdrop-blur-lg border-b border-gray-200/60 sticky top-0 z-30">
-        <h1 className="text-xl font-bold text-slate-800 capitalize">{activeViewLabel}</h1>
-        <button onClick={onMenuClick} className="p-2">
+    <div className="md:hidden flex items-center justify-between p-2 bg-white/60 backdrop-blur-lg border-b border-gray-200/60 sticky top-0 z-30 h-[50px]">
+        <h1 className="text-lg font-bold text-slate-800 capitalize">{activeViewLabel}</h1>
+        <button onClick={onMenuClick} className="p-1">
             <MenuIcon className="w-6 h-6" />
         </button>
     </div>

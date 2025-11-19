@@ -67,13 +67,13 @@ const ProductSide: React.FC<{
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 onFocus={() => setIsSearchFocused(true)}
-                className="w-full p-3 md:p-4 pl-40 md:pl-48 rounded-xl bg-white/80 border-2 border-transparent shadow-sm form-input text-sm md:text-base"
+                className="w-full p-3 md:p-4 pl-32 md:pl-48 rounded-xl bg-white/80 border-2 border-transparent shadow-sm form-input text-sm md:text-base"
             />
             <div className="absolute left-2 top-1/2 -translate-y-1/2 flex items-center h-full">
                 <div className="flex items-center gap-0.5 md:gap-1">
                     <button 
                         onClick={() => setIsBarcodeModeActive(!isBarcodeModeActive)} 
-                        className={`p-1.5 md:p-2 rounded-lg transition-all duration-200 ${isBarcodeModeActive ? 'bg-green-100 text-green-700' : 'text-slate-500 hover:bg-slate-200/60'}`}
+                        className={`hidden md:block p-1.5 md:p-2 rounded-lg transition-all duration-200 ${isBarcodeModeActive ? 'bg-green-100 text-green-700' : 'text-slate-500 hover:bg-slate-200/60'}`}
                     >
                         <BarcodeIcon className="w-5 h-5 md:w-6 md:h-6"/>
                     </button>
@@ -110,7 +110,7 @@ const ProductSide: React.FC<{
         {/* Mobile Mini Cart Preview (only visible in Product View) */}
         <div className="md:hidden mt-2 pt-2 border-t border-gray-200/60 flex-grow flex flex-col min-h-0 pb-16">
              {cart.length > 0 ? (
-                 <div className="space-y-2 overflow-y-auto">
+                 <div className="space-y-2 overflow-y-auto px-1">
                      {cart.map((item: CartItem) => (
                        <POSCartItem
                            key={`mini-${item.id}-${item.type}`}
@@ -145,7 +145,15 @@ const CartSide: React.FC<any> = ({
     setEditingPriceItemId, updateCartItemFinalPrice, hasPermission, selectedCustomerId,
     setSelectedCustomerId, customers, totalAmount, completeSale, setInvoiceDateRange,
     handlePrintInvoice, handleEditInvoice, storeSettings, setMobileView, addToCart, handleOpenReturnModal
-}) => (
+}) => {
+    
+    const [isMobileCustomerMenuOpen, setIsMobileCustomerMenuOpen] = useState(false);
+    
+    const selectedCustomerName = useMemo(() => {
+        return customers.find((c: any) => c.id === selectedCustomerId)?.name || 'فروش نقدی';
+    }, [selectedCustomerId, customers]);
+
+    return (
      <>
         <div className="flex justify-between items-center mb-2 md:mb-4">
             <div className="flex border-b border-gray-200/60 w-full overflow-x-auto no-scrollbar">
@@ -185,7 +193,7 @@ const CartSide: React.FC<any> = ({
             )}
             
             {/* Cart Items List */}
-            <div className="flex-grow overflow-y-auto -mx-4 px-4 pb-40 md:pb-4">
+            <div className="flex-grow overflow-y-auto -mx-4 px-4 pb-24 md:pb-4">
                 {cart.length === 0 ? (
                     <div className="flex items-center justify-center h-40 md:h-full">
                         <p className="text-slate-500">سبد خرید خالی است.</p>
@@ -211,41 +219,80 @@ const CartSide: React.FC<any> = ({
                 )}
             </div>
             
-            {/* Sticky Footer for Mobile / Normal for Desktop */}
-            <div className="fixed md:static bottom-[60px] left-0 right-0 bg-white/95 backdrop-blur md:bg-transparent border-t-2 border-gray-200/60 p-3 md:pt-4 md:mt-auto z-20 shadow-[0_-5px_10px_rgba(0,0,0,0.05)] md:shadow-none">
-                <div className="mb-2 md:mb-4 relative">
-                     {/* Compact Customer Selector for Mobile */}
-                     <div className="md:hidden relative">
-                         <select 
-                            id="customer-select-mobile" 
-                            value={selectedCustomerId} 
-                            onChange={e => setSelectedCustomerId(e.target.value)} 
-                            className="w-full p-2 pl-8 bg-blue-50 border border-blue-200 rounded-lg text-sm font-semibold text-blue-900 appearance-none focus:ring-2 focus:ring-blue-400" 
-                            disabled={!hasPermission('pos:create_credit_sale')}
-                        >
-                            <option value="">فروش نقدی (پیش‌فرض)</option>
-                            {customers.map((c: Customer) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                        </select>
-                        <ChevronDownIcon className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-500 pointer-events-none"/>
-                     </div>
-
-                     {/* Standard Customer Selector for Desktop */}
-                    <div className="hidden md:block">
-                        <label htmlFor="customer-select" className="text-md font-semibold text-slate-700">مشتری (برای فروش نسیه)</label>
-                        <select id="customer-select" value={selectedCustomerId} onChange={e => setSelectedCustomerId(e.target.value)} className="w-full p-3 mt-2 bg-white/80 border-2 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 form-input" disabled={!hasPermission('pos:create_credit_sale')}>
-                            <option value="">فروش نقدی</option>
-                            {customers.map((c: Customer) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                        </select>
-                    </div>
+            {/* Standard Footer for Desktop */}
+            <div className="hidden md:block mt-auto pt-4 border-t-2 border-gray-200/60">
+                <div className="mb-4">
+                    <label htmlFor="customer-select" className="text-md font-semibold text-slate-700">مشتری (برای فروش نسیه)</label>
+                    <select id="customer-select" value={selectedCustomerId} onChange={e => setSelectedCustomerId(e.target.value)} className="w-full p-3 mt-2 bg-white/80 border-2 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 form-input" disabled={!hasPermission('pos:create_credit_sale')}>
+                        <option value="">فروش نقدی</option>
+                        {customers.map((c: Customer) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
                 </div>
                 
                 <div className="flex items-center justify-between gap-3">
-                     <div className="flex flex-col md:flex-row md:items-center md:gap-2">
-                        <span className="text-xs md:text-lg font-bold text-slate-500">مبلغ کل:</span>
-                        <span className="text-lg md:text-2xl font-extrabold text-blue-700">{formatCurrency(totalAmount, storeSettings)}</span>
+                     <div className="flex items-center gap-2">
+                        <span className="text-lg font-bold text-slate-500">مبلغ کل:</span>
+                        <span className="text-2xl font-extrabold text-blue-700">{formatCurrency(totalAmount, storeSettings)}</span>
                     </div>
-                    <button onClick={completeSale} className="flex-1 md:w-full p-3 md:p-4 bg-blue-600 text-white font-bold text-lg rounded-xl shadow-lg hover:shadow-xl hover:bg-blue-700 transition-all duration-300 transform btn-primary disabled:bg-gray-400 disabled:shadow-none" disabled={cart.length === 0 || !hasPermission('pos:create_invoice')}>
+                    <button onClick={completeSale} className="w-full p-4 bg-blue-600 text-white font-bold text-lg rounded-xl shadow-lg hover:shadow-xl hover:bg-blue-700 transition-all duration-300 transform btn-primary disabled:bg-gray-400 disabled:shadow-none" disabled={cart.length === 0 || !hasPermission('pos:create_invoice')}>
                          {editingSaleInvoiceId ? 'بروزرسانی' : 'ثبت فاکتور'}
+                    </button>
+                </div>
+            </div>
+
+            {/* Compact Fixed Footer for Mobile */}
+             <div className="md:hidden fixed bottom-[50px] left-0 right-0 bg-white border-t border-gray-200 px-3 py-2 z-20 shadow-[0_-2px_10px_rgba(0,0,0,0.05)] h-14 flex items-center justify-between gap-2">
+                {/* Total Amount (Left - ~50%) */}
+                <div className="flex flex-col justify-center w-[45%]">
+                    <span className="text-[10px] text-slate-500 font-bold">مبلغ کل</span>
+                    <span className="text-lg font-extrabold text-blue-700 truncate">{formatCurrency(totalAmount, storeSettings)}</span>
+                </div>
+
+                {/* Right Side Controls */}
+                <div className="flex items-center gap-2 w-[55%] justify-end">
+                     {/* Customer Selector Icon */}
+                     <div className="relative">
+                        <button 
+                            onClick={() => setIsMobileCustomerMenuOpen(!isMobileCustomerMenuOpen)} 
+                            className={`p-2 rounded-lg border transition-colors ${selectedCustomerId ? 'bg-blue-100 border-blue-300 text-blue-700' : 'bg-gray-100 border-gray-300 text-gray-600'}`}
+                        >
+                            <UserGroupIcon className="w-6 h-6" />
+                        </button>
+                        
+                        {/* Pop-up Menu for Customer Selection */}
+                        {isMobileCustomerMenuOpen && (
+                            <>
+                                <div className="fixed inset-0 z-30 bg-black/20" onClick={() => setIsMobileCustomerMenuOpen(false)}></div>
+                                <div className="absolute bottom-full left-0 mb-2 w-48 bg-white rounded-xl shadow-xl border border-gray-200 z-40 max-h-60 overflow-y-auto">
+                                    <div className="p-2 border-b bg-gray-50 text-xs font-bold text-slate-500">انتخاب مشتری</div>
+                                    <div 
+                                        onClick={() => { setSelectedCustomerId(''); setIsMobileCustomerMenuOpen(false); }}
+                                        className={`p-3 text-sm font-semibold cursor-pointer border-b ${selectedCustomerId === '' ? 'bg-blue-50 text-blue-600' : 'text-slate-700 hover:bg-gray-50'}`}
+                                    >
+                                        فروش نقدی (پیش‌فرض)
+                                    </div>
+                                    {customers.map((c: Customer) => (
+                                         <div 
+                                            key={c.id}
+                                            onClick={() => { setSelectedCustomerId(c.id); setIsMobileCustomerMenuOpen(false); }}
+                                            className={`p-3 text-sm font-semibold cursor-pointer border-b last:border-0 ${selectedCustomerId === c.id ? 'bg-blue-50 text-blue-600' : 'text-slate-700 hover:bg-gray-50'}`}
+                                        >
+                                            {c.name}
+                                        </div>
+                                    ))}
+                                </div>
+                            </>
+                        )}
+                     </div>
+
+                     {/* Compact Save Button */}
+                    <button 
+                        onClick={completeSale} 
+                        className="flex-grow h-10 bg-blue-600 text-white rounded-lg shadow-md active:scale-95 transition-transform flex items-center justify-center gap-1 px-2 disabled:bg-gray-400"
+                        disabled={cart.length === 0 || !hasPermission('pos:create_invoice')}
+                    >
+                        <CheckIcon className="w-5 h-5" />
+                        <span className="font-bold text-sm">{editingSaleInvoiceId ? 'ویرایش' : 'ثبت'}</span>
                     </button>
                 </div>
             </div>
@@ -305,7 +352,8 @@ const CartSide: React.FC<any> = ({
             </div>
         )}
     </>
-);
+    );
+};
 
 const ReturnModal: React.FC<{ invoice: SaleInvoice, onClose: () => void, onSubmit: (returnItems: { id: string, type: 'product' | 'service', quantity: number }[]) => void }> = ({ invoice, onClose, onSubmit }) => {
     const [returnQuantities, setReturnQuantities] = useState<{[key: string]: number}>({});

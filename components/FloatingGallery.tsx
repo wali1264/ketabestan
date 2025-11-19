@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import type { SalesMemoImage } from '../types';
-import { XIcon, TrashIcon, MinimizeIcon } from './icons';
+import { XIcon, TrashIcon, MinimizeIcon, ChevronDoubleLeftIcon, ChevronDoubleRightIcon } from './icons';
 
 interface FloatingGalleryProps {
     images: SalesMemoImage[];
@@ -74,23 +74,29 @@ const FloatingGallery: React.FC<FloatingGalleryProps> = ({ images, onClose, onDe
         }
     };
     
-    // Minimized View (Desktop Only logic, could be adapted but simple is better)
+    // Minimized View
     if (isMinimized) {
         return (
              <div 
-                style={{
+                style={window.innerWidth >= 768 ? {
                     position: 'fixed',
                     left: `${position.x}px`,
                     top: `${position.y}px`,
                     cursor: 'move',
+                } : {
+                    position: 'fixed',
+                    bottom: '80px',
+                    right: '20px'
                 }}
                 onMouseDown={handleMouseDown}
-                className="bg-blue-600 text-white rounded-xl shadow-2xl p-3 z-[100] flex items-center hidden md:flex"
+                className="bg-blue-600 text-white rounded-full md:rounded-xl shadow-2xl p-3 z-[100] flex items-center justify-center cursor-pointer animate-bounce md:animate-none"
+                onClick={() => setIsMinimized(false)}
             >
-                <span className="font-semibold">گالری</span>
-                <button onClick={() => setIsMinimized(false)} className="ml-2 p-1 rounded-full hover:bg-white/20 transition-colors">
-                    <XIcon className="w-5 h-5 transform rotate-45" />
-                </button>
+                <span className="font-semibold hidden md:inline mr-2">گالری</span>
+                <div className="relative">
+                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"></div>
+                    <MinimizeIcon className="w-6 h-6 transform rotate-180" />
+                </div>
             </div>
         )
     }
@@ -116,26 +122,30 @@ const FloatingGallery: React.FC<FloatingGalleryProps> = ({ images, onClose, onDe
                     className="bg-slate-100/80 p-3 flex justify-between items-center cursor-move border-b border-slate-200 touch-none"
                     onMouseDown={handleMouseDown}
                 >
-                    <h3 className="font-bold text-slate-700">گالری یادداشت‌ها ({currentIndex + 1}/{images.length})</h3>
+                    <h3 className="font-bold text-slate-700 text-sm md:text-base">گالری ({currentIndex + 1}/{images.length})</h3>
                     <div className="flex items-center space-x-1 space-x-reverse">
-                        <button onClick={() => setIsMinimized(true)} className="hidden md:block p-1 rounded-full text-slate-600 hover:bg-slate-200"><MinimizeIcon className="w-5 h-5"/></button>
+                        <button onClick={() => setIsMinimized(true)} className="p-1 rounded-full text-slate-600 hover:bg-slate-200"><MinimizeIcon className="w-5 h-5"/></button>
                         <button onClick={onClose} className="p-1 rounded-full text-slate-600 hover:bg-slate-200"><XIcon className="w-5 h-5"/></button>
                     </div>
                 </div>
 
-                <div className="flex-grow p-2 flex items-center justify-center bg-black/5 relative aspect-[3/4] md:aspect-square">
+                <div className="flex-grow p-2 flex items-center justify-center bg-black/5 relative aspect-[3/4] md:aspect-square group">
                      {images.length > 0 && images[currentIndex] ? (
                         <img src={images[currentIndex].imageData} alt="Memo" className="max-w-full max-h-full object-contain rounded shadow-sm" />
                      ) : (
                         <p className="text-slate-500">تصویری وجود ندارد.</p>
                      )}
                      
-                     {/* Navigation Overlays for Mobile ease */}
-                     <div className="absolute inset-y-0 left-0 w-1/4 flex items-center justify-start pl-2 opacity-0 hover:opacity-100 md:opacity-100 transition-opacity cursor-pointer" onClick={prevImage}>
-                         <div className="bg-black/30 text-white p-2 rounded-full hover:bg-black/50"><span className="text-2xl font-bold">&lt;</span></div>
+                     {/* Navigation Arrows */}
+                     <div className="absolute inset-y-0 left-0 w-1/4 flex items-center justify-start pl-2 cursor-pointer z-10" onClick={prevImage}>
+                         <div className="bg-white/80 text-slate-800 p-2 rounded-full shadow-lg hover:bg-white transition-all transform active:scale-90">
+                             <ChevronDoubleLeftIcon className="w-5 h-5" />
+                        </div>
                      </div>
-                     <div className="absolute inset-y-0 right-0 w-1/4 flex items-center justify-end pr-2 opacity-0 hover:opacity-100 md:opacity-100 transition-opacity cursor-pointer" onClick={nextImage}>
-                         <div className="bg-black/30 text-white p-2 rounded-full hover:bg-black/50"><span className="text-2xl font-bold">&gt;</span></div>
+                     <div className="absolute inset-y-0 right-0 w-1/4 flex items-center justify-end pr-2 cursor-pointer z-10" onClick={nextImage}>
+                         <div className="bg-white/80 text-slate-800 p-2 rounded-full shadow-lg hover:bg-white transition-all transform active:scale-90">
+                            <ChevronDoubleRightIcon className="w-5 h-5" />
+                        </div>
                      </div>
                 </div>
 

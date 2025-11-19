@@ -1,7 +1,8 @@
+
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import type { InvoiceItem, Product, SaleInvoice, SpeechRecognition, SpeechRecognitionEvent, SpeechRecognitionErrorEvent, Customer, SalesMemoImage, Service, CartItem } from '../types';
 import { useAppContext } from '../AppContext';
-import { MicIcon, EditIcon, PrintIcon, TrashIcon, CameraIcon, GalleryIcon, XIcon, CheckIcon, BarcodeIcon, PlusIcon } from '../components/icons';
+import { MicIcon, EditIcon, PrintIcon, TrashIcon, CameraIcon, GalleryIcon, XIcon, CheckIcon, BarcodeIcon, PlusIcon, UserGroupIcon, ChevronDownIcon } from '../components/icons';
 import Toast from '../components/Toast';
 import PrintPreviewModal from '../components/PrintPreviewModal';
 import FloatingGallery from '../components/FloatingGallery';
@@ -62,68 +63,57 @@ const ProductSide: React.FC<{
             <input
                 ref={searchInputRef}
                 type="text"
-                placeholder="جستجوی محصول یا اسکن بارکد..."
+                placeholder="جستجو یا اسکن..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 onFocus={() => setIsSearchFocused(true)}
-                className="w-full p-4 pl-48 rounded-xl bg-white/80 border-2 border-transparent shadow-sm form-input"
+                className="w-full p-3 md:p-4 pl-40 md:pl-48 rounded-xl bg-white/80 border-2 border-transparent shadow-sm form-input text-sm md:text-base"
             />
-            <div className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center h-full">
-                <div className="flex items-center gap-1">
+            <div className="absolute left-2 top-1/2 -translate-y-1/2 flex items-center h-full">
+                <div className="flex items-center gap-0.5 md:gap-1">
                     <button 
                         onClick={() => setIsBarcodeModeActive(!isBarcodeModeActive)} 
-                        className={`p-2 rounded-lg transition-all duration-200 ${isBarcodeModeActive ? 'bg-green-100 text-green-700' : 'text-slate-500 hover:bg-slate-200/60'}`}
-                        title="حالت فروش با اسکنر"
+                        className={`p-1.5 md:p-2 rounded-lg transition-all duration-200 ${isBarcodeModeActive ? 'bg-green-100 text-green-700' : 'text-slate-500 hover:bg-slate-200/60'}`}
                     >
-                        <BarcodeIcon className="w-6 h-6"/>
+                        <BarcodeIcon className="w-5 h-5 md:w-6 md:h-6"/>
                     </button>
-                    <button onClick={toggleListening} className={`p-2 rounded-lg transition-all duration-200 ${isListening ? 'bg-red-100 text-red-700 animate-pulse' : 'text-slate-500 hover:bg-slate-200/60'}`}>
-                        <MicIcon className="w-6 h-6"/>
+                    <button onClick={toggleListening} className={`p-1.5 md:p-2 rounded-lg transition-all duration-200 ${isListening ? 'bg-red-100 text-red-700 animate-pulse' : 'text-slate-500 hover:bg-slate-200/60'}`}>
+                        <MicIcon className="w-5 h-5 md:w-6 md:h-6"/>
                     </button>
-                    <button onClick={handleTakePhotoClick} className="p-2 rounded-lg text-slate-500 hover:bg-slate-200/60 transition-all duration-200" title="ثبت عکس سریع">
-                        <CameraIcon className="w-6 h-6"/>
+                    <button onClick={handleTakePhotoClick} className="p-1.5 md:p-2 rounded-lg text-slate-500 hover:bg-slate-200/60 transition-all duration-200">
+                        <CameraIcon className="w-5 h-5 md:w-6 md:h-6"/>
                     </button>
                 </div>
-                <div className="w-px h-6 bg-slate-300 mx-2"></div>
-                <button type="button" onClick={toggleLanguage} className="px-3 py-1.5 text-sm font-semibold rounded-lg bg-slate-200 text-slate-600 hover:bg-slate-300 transition-colors">
+                <div className="w-px h-5 bg-slate-300 mx-1"></div>
+                <button type="button" onClick={toggleLanguage} className="px-2 py-1 text-xs font-bold rounded bg-slate-200 text-slate-600 hover:bg-slate-300 transition-colors">
                     {recognitionLang === 'fa-IR' ? 'FA' : 'EN'}
                 </button>
             </div>
             {isSearchFocused && dropdownProducts.length > 0 && (
-                <div className="absolute top-full mt-2 w-full bg-white/95 backdrop-blur-xl rounded-xl shadow-lg border border-gray-200/60 z-20 max-h-80 overflow-y-auto">
+                <div className="absolute top-full mt-2 w-full bg-white/95 backdrop-blur-xl rounded-xl shadow-lg border border-gray-200/60 z-20 max-h-60 md:max-h-80 overflow-y-auto">
                     <ul>
                         {dropdownProducts.map((product: Product) => (
                             <li 
                                 key={product.id}
                                 onClick={() => handleDropdownItemClick(product)}
-                                className="p-4 flex justify-between items-center hover:bg-blue-100/50 cursor-pointer border-b border-gray-200/60 last:border-b-0"
+                                className="p-3 md:p-4 flex justify-between items-center hover:bg-blue-100/50 cursor-pointer border-b border-gray-200/60 last:border-b-0"
                             >
-                                <span className="font-semibold text-slate-800 text-lg">{product.name}</span>
-                                <span className="text-blue-600 font-bold">{formatCurrency(product.salePrice, storeSettings)}</span>
+                                <span className="font-semibold text-slate-800 text-sm md:text-lg">{product.name}</span>
+                                <span className="text-blue-600 font-bold text-sm md:text-base">{formatCurrency(product.salePrice, storeSettings)}</span>
                             </li>
                         ))}
                     </ul>
                 </div>
             )}
-            {isSearchFocused && searchTerm && dropdownProducts.length === 0 && (
-                 <div className="absolute top-full mt-2 w-full bg-white/95 backdrop-blur-xl rounded-xl shadow-lg border border-gray-200/60 z-20 p-4">
-                    <p className="text-center text-slate-500">محصولی یافت نشد.</p>
-                </div>
-            )}
         </div>
         
-        {/* Mini Cart for Mobile */}
-        <div className="md:hidden mt-4 pt-4 border-t border-gray-200/60 flex-grow flex flex-col min-h-0">
-            <h3 className="text-lg font-bold text-slate-800 mb-3 px-1 flex-shrink-0">اقلام انتخاب شده ({cart.length})</h3>
-            <div className="flex-grow overflow-y-auto -mx-1 px-1">
-                {cart.length === 0 ? (
-                     <div className="flex items-center justify-center h-full">
-                        <p className="text-slate-500">موردی به سبد خرید اضافه نشده.</p>
-                    </div>
-                ) : (
-                    cart.map((item: CartItem) => (
+        {/* Mobile Mini Cart Preview (only visible in Product View) */}
+        <div className="md:hidden mt-2 pt-2 border-t border-gray-200/60 flex-grow flex flex-col min-h-0 pb-16">
+             {cart.length > 0 ? (
+                 <div className="space-y-2 overflow-y-auto">
+                     {cart.map((item: CartItem) => (
                        <POSCartItem
-                           key={`${item.id}-${item.type}`}
+                           key={`mini-${item.id}-${item.type}`}
                            item={item}
                            isEditingPrice={editingPriceItemId === `${item.id}-${item.type}`}
                            storeSettings={storeSettings}
@@ -137,9 +127,13 @@ const ProductSide: React.FC<{
                            }}
                            onCancelPriceEdit={() => setEditingPriceItemId(null)}
                        />
-                    ))
-                )}
-            </div>
+                    ))}
+                 </div>
+             ) : (
+                <div className="flex flex-col items-center justify-center h-40 text-slate-400">
+                    <p>سبد خرید خالی است</p>
+                </div>
+             )}
         </div>
     </>
 );
@@ -153,25 +147,25 @@ const CartSide: React.FC<any> = ({
     handlePrintInvoice, handleEditInvoice, storeSettings, setMobileView, addToCart, handleOpenReturnModal
 }) => (
      <>
-        <div className="flex justify-between items-center mb-4">
-            <div className="flex border-b-2 border-gray-200/60">
-                <button onClick={() => setActiveTab('cart')} className={`py-3 px-6 font-bold text-lg transition-colors relative ${activeTab === 'cart' ? 'text-blue-600' : 'text-slate-500 hover:text-blue-600'}`}>
+        <div className="flex justify-between items-center mb-2 md:mb-4">
+            <div className="flex border-b border-gray-200/60 w-full overflow-x-auto no-scrollbar">
+                <button onClick={() => setActiveTab('cart')} className={`py-2 px-3 md:px-6 font-bold text-sm md:text-lg whitespace-nowrap transition-colors relative ${activeTab === 'cart' ? 'text-blue-600' : 'text-slate-500 hover:text-blue-600'}`}>
                     سبد خرید ({cart.length})
                     {activeTab === 'cart' && <div className="absolute bottom-0 left-0 w-full h-1 bg-blue-600 rounded-t-full"></div>}
                 </button>
-                 <button onClick={() => setActiveTab('invoices')} className={`py-3 px-6 font-bold text-lg transition-colors relative ${activeTab === 'invoices' ? 'text-blue-600' : 'text-slate-500 hover:text-blue-600'}`}>
-                    فاکتورها ({filteredInvoices.length})
+                 <button onClick={() => setActiveTab('invoices')} className={`py-2 px-3 md:px-6 font-bold text-sm md:text-lg whitespace-nowrap transition-colors relative ${activeTab === 'invoices' ? 'text-blue-600' : 'text-slate-500 hover:text-blue-600'}`}>
+                    فاکتورها
                     {activeTab === 'invoices' && <div className="absolute bottom-0 left-0 w-full h-1 bg-blue-600 rounded-t-full"></div>}
                 </button>
-                 <button onClick={() => setActiveTab('services')} className={`py-3 px-6 font-bold text-lg transition-colors relative ${activeTab === 'services' ? 'text-blue-600' : 'text-slate-500 hover:text-blue-600'}`}>
+                 <button onClick={() => setActiveTab('services')} className={`py-2 px-3 md:px-6 font-bold text-sm md:text-lg whitespace-nowrap transition-colors relative ${activeTab === 'services' ? 'text-blue-600' : 'text-slate-500 hover:text-blue-600'}`}>
                     خدمات
                     {activeTab === 'services' && <div className="absolute bottom-0 left-0 w-full h-1 bg-blue-600 rounded-t-full"></div>}
                 </button>
             </div>
-             <button onClick={() => setIsGalleryOpen(true)} className="relative p-2 rounded-full text-gray-500 hover:text-blue-600 hover:bg-gray-100 transition-colors" title="گالری یادداشت‌ها">
-                <GalleryIcon className="w-7 h-7" />
+             <button onClick={() => setIsGalleryOpen(true)} className="flex-shrink-0 ml-1 p-2 rounded-full text-gray-500 hover:text-blue-600 hover:bg-gray-100 transition-colors" title="گالری">
+                <GalleryIcon className="w-6 h-6" />
                 {memoImages.length > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+                    <span className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-bold rounded-full h-4 w-4 flex items-center justify-center">
                         {memoImages.length}
                     </span>
                 )}
@@ -181,18 +175,20 @@ const CartSide: React.FC<any> = ({
         {activeTab === 'cart' && (
         <>
             {editingSaleInvoiceId && (
-                <div className="p-3 mb-4 bg-amber-100/80 border-r-4 border-amber-500 text-amber-900 rounded-l-md flex justify-between items-center">
-                   <p className="font-bold">در حال ویرایش فاکتور: <span className="font-mono">{editingSaleInvoiceId}</span></p>
-                   <button onClick={handleCancelEdit} className="flex items-center text-sm font-semibold text-amber-800 hover:text-red-700">
+                <div className="p-2 mb-2 text-xs md:text-sm bg-amber-100/80 border-r-4 border-amber-500 text-amber-900 rounded-l-md flex justify-between items-center">
+                   <p className="font-bold">ویرایش: <span className="font-mono">{editingSaleInvoiceId}</span></p>
+                   <button onClick={handleCancelEdit} className="flex items-center font-semibold text-amber-800 hover:text-red-700">
                         <XIcon className="w-4 h-4 ml-1" />
-                        لغو ویرایش
+                        لغو
                    </button>
                 </div>
             )}
-            <div className="flex-grow overflow-y-auto -mx-6 px-6">
+            
+            {/* Cart Items List */}
+            <div className="flex-grow overflow-y-auto -mx-4 px-4 pb-40 md:pb-4">
                 {cart.length === 0 ? (
-                    <div className="flex items-center justify-center h-full">
-                        <p className="text-slate-500 text-lg">سبد خرید شما خالی است.</p>
+                    <div className="flex items-center justify-center h-40 md:h-full">
+                        <p className="text-slate-500">سبد خرید خالی است.</p>
                     </div>
                 ) : (
                     cart.map((item: CartItem) => (
@@ -214,55 +210,75 @@ const CartSide: React.FC<any> = ({
                     ))
                 )}
             </div>
-            <div className="border-t-2 border-gray-200/60 pt-4 mt-4">
-                <div className="mb-4">
-                    <label htmlFor="customer-select" className="text-md font-semibold text-slate-700">مشتری (برای فروش نسیه)</label>
-                     <select id="customer-select" value={selectedCustomerId} onChange={e => setSelectedCustomerId(e.target.value)} className="w-full p-3 mt-2 bg-white/80 border-2 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 form-input" disabled={!hasPermission('pos:create_credit_sale')}>
-                        <option value="">فروش نقدی</option>
-                        {customers.map((c: Customer) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </select>
+            
+            {/* Sticky Footer for Mobile / Normal for Desktop */}
+            <div className="fixed md:static bottom-[60px] left-0 right-0 bg-white/95 backdrop-blur md:bg-transparent border-t-2 border-gray-200/60 p-3 md:pt-4 md:mt-auto z-20 shadow-[0_-5px_10px_rgba(0,0,0,0.05)] md:shadow-none">
+                <div className="mb-2 md:mb-4 relative">
+                     {/* Compact Customer Selector for Mobile */}
+                     <div className="md:hidden relative">
+                         <select 
+                            id="customer-select-mobile" 
+                            value={selectedCustomerId} 
+                            onChange={e => setSelectedCustomerId(e.target.value)} 
+                            className="w-full p-2 pl-8 bg-blue-50 border border-blue-200 rounded-lg text-sm font-semibold text-blue-900 appearance-none focus:ring-2 focus:ring-blue-400" 
+                            disabled={!hasPermission('pos:create_credit_sale')}
+                        >
+                            <option value="">فروش نقدی (پیش‌فرض)</option>
+                            {customers.map((c: Customer) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select>
+                        <ChevronDownIcon className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-500 pointer-events-none"/>
+                     </div>
+
+                     {/* Standard Customer Selector for Desktop */}
+                    <div className="hidden md:block">
+                        <label htmlFor="customer-select" className="text-md font-semibold text-slate-700">مشتری (برای فروش نسیه)</label>
+                        <select id="customer-select" value={selectedCustomerId} onChange={e => setSelectedCustomerId(e.target.value)} className="w-full p-3 mt-2 bg-white/80 border-2 border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 form-input" disabled={!hasPermission('pos:create_credit_sale')}>
+                            <option value="">فروش نقدی</option>
+                            {customers.map((c: Customer) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select>
+                    </div>
                 </div>
-                <div className="flex justify-between items-center text-2xl font-bold mb-5 text-slate-800">
-                    <span>مبلغ کل:</span>
-                    <span className="text-blue-600">{formatCurrency(totalAmount, storeSettings)}</span>
+                
+                <div className="flex items-center justify-between gap-3">
+                     <div className="flex flex-col md:flex-row md:items-center md:gap-2">
+                        <span className="text-xs md:text-lg font-bold text-slate-500">مبلغ کل:</span>
+                        <span className="text-lg md:text-2xl font-extrabold text-blue-700">{formatCurrency(totalAmount, storeSettings)}</span>
+                    </div>
+                    <button onClick={completeSale} className="flex-1 md:w-full p-3 md:p-4 bg-blue-600 text-white font-bold text-lg rounded-xl shadow-lg hover:shadow-xl hover:bg-blue-700 transition-all duration-300 transform btn-primary disabled:bg-gray-400 disabled:shadow-none" disabled={cart.length === 0 || !hasPermission('pos:create_invoice')}>
+                         {editingSaleInvoiceId ? 'بروزرسانی' : 'ثبت فاکتور'}
+                    </button>
                 </div>
-                <button onClick={completeSale} className="w-full p-4 bg-blue-600 text-white font-bold text-xl rounded-lg shadow-lg hover:shadow-xl hover:bg-blue-700 transition-all duration-300 transform btn-primary disabled:bg-gray-400 disabled:shadow-none disabled:hover:translate-y-0" disabled={cart.length === 0 || !hasPermission('pos:create_invoice')}>
-                     {editingSaleInvoiceId ? 'بروزرسانی فاکتور' : 'ثبت فاکتور'}
-                </button>
             </div>
         </>
         )}
 
         {activeTab === 'invoices' && (
-            <div className="flex flex-col h-full">
-                 <div className="mb-4 p-2 bg-slate-100/50 rounded-lg">
+            <div className="flex flex-col h-full pb-16">
+                 <div className="mb-2 p-2 bg-slate-100/50 rounded-lg overflow-x-auto">
                     <DateRangeFilter onFilterChange={(start: Date, end: Date) => setInvoiceDateRange({ start, end })} />
                 </div>
-                <div className="flex-grow overflow-y-auto -mx-6 px-6">
+                <div className="flex-grow overflow-y-auto -mx-2 md:-mx-6 px-2 md:px-6">
                      {filteredInvoices.length === 0 ? (
-                        <div className="flex items-center justify-center h-full">
-                            <p className="text-slate-500 text-lg">در این بازه زمانی فاکتوری ثبت نشده است.</p>
+                        <div className="flex items-center justify-center h-40 text-slate-500">
+                            <p>فاکتوری یافت نشد.</p>
                         </div>
                      ) : (
                         filteredInvoices.map((invoice: SaleInvoice) => (
-                            <div key={invoice.id} className="flex items-center justify-between mb-4 p-4 bg-white/80 rounded-xl shadow-sm border border-gray-200/50">
+                            <div key={invoice.id} className="flex items-center justify-between mb-3 p-3 bg-white/80 rounded-xl shadow-sm border border-gray-200/50">
                                 <div>
                                     <div className="flex items-center gap-2">
-                                        <p className="font-mono font-bold text-slate-800 text-lg">{invoice.id}</p>
-                                        {invoice.type === 'return' && <span className="text-xs font-bold bg-orange-200 text-orange-800 px-2 py-0.5 rounded-full">مرجوعی</span>}
+                                        <p className="font-mono font-bold text-slate-800 text-sm md:text-lg">{invoice.id.slice(0,8)}..</p>
+                                        {invoice.type === 'return' && <span className="text-[10px] font-bold bg-orange-200 text-orange-800 px-1.5 py-0.5 rounded-full">مرجوعی</span>}
                                     </div>
-                                    <div className="text-md text-blue-600 font-bold">
+                                    <div className="text-sm md:text-md text-blue-600 font-bold">
                                         {formatCurrency(invoice.totalAmount, storeSettings)}
-                                        {Number(invoice.totalDiscount) > 0 && (
-                                            <span className="text-xs text-green-600 font-semibold mr-2">(تخفیف: {formatCurrency(invoice.totalDiscount, storeSettings)})</span>
-                                        )}
                                     </div>
-                                    <p className="text-sm text-slate-500">{new Date(invoice.timestamp).toLocaleString('fa-IR')}</p>
+                                    <p className="text-xs text-slate-400">{new Date(invoice.timestamp).toLocaleTimeString('fa-IR', {hour: '2-digit', minute:'2-digit'})}</p>
                                 </div>
-                                <div className="flex items-center space-x-2 space-x-reverse">
-                                    <button onClick={() => handlePrintInvoice(invoice.id)} className="p-2 rounded-full text-gray-500 hover:text-green-600 hover:bg-green-100/50 transition-colors"><PrintIcon className="w-6 h-6"/></button>
-                                    {hasPermission('pos:edit_invoice') && invoice.type === 'sale' && <button onClick={() => handleEditInvoice(invoice.id)} className="p-2 rounded-full text-gray-500 hover:text-blue-600 hover:bg-blue-100/50 transition-colors"><EditIcon className="w-6 h-6"/></button>}
-                                    {invoice.type === 'sale' && <button onClick={() => handleOpenReturnModal(invoice)} className="p-2 rounded-full text-gray-500 hover:text-orange-600 hover:bg-orange-100/50 transition-colors" title="مرجوعی"><PlusIcon className="w-6 h-6 transform rotate-45" /></button>}
+                                <div className="flex items-center gap-1">
+                                    <button onClick={() => handlePrintInvoice(invoice.id)} className="p-1.5 rounded-full text-gray-500 hover:text-green-600 bg-gray-50 hover:bg-green-100"><PrintIcon className="w-5 h-5"/></button>
+                                    {hasPermission('pos:edit_invoice') && invoice.type === 'sale' && <button onClick={() => handleEditInvoice(invoice.id)} className="p-1.5 rounded-full text-gray-500 hover:text-blue-600 bg-gray-50 hover:bg-blue-100"><EditIcon className="w-5 h-5"/></button>}
+                                    {invoice.type === 'sale' && <button onClick={() => handleOpenReturnModal(invoice)} className="p-1.5 rounded-full text-gray-500 hover:text-orange-600 bg-gray-50 hover:bg-orange-100"><PlusIcon className="w-5 h-5 transform rotate-45" /></button>}
                                 </div>
                             </div>
                         ))
@@ -271,19 +287,16 @@ const CartSide: React.FC<any> = ({
             </div>
         )}
         {activeTab === 'services' && (
-             <div className="flex-grow overflow-y-auto -mx-6 px-6">
+             <div className="flex-grow overflow-y-auto -mx-6 px-6 pb-16">
                  {services.length === 0 ? (
-                    <div className="flex items-center justify-center h-full flex-col">
-                        <p className="text-slate-500 text-lg">هیچ خدمتی تعریف نشده است.</p>
-                        <p className="text-slate-500 text-sm">به بخش تنظیمات بروید تا خدمات جدید اضافه کنید.</p>
+                    <div className="flex items-center justify-center h-40 text-slate-500 flex-col">
+                        <p>خدمتی تعریف نشده.</p>
                     </div>
                  ) : (
                     services.map((service: Service) => (
-                        <div key={service.id} onClick={() => {addToCart(service, 'service'); setActiveTab('cart'); setMobileView('cart');}} className="flex items-center justify-between mb-4 p-4 bg-white/80 rounded-xl shadow-sm border border-gray-200/50 cursor-pointer hover:bg-blue-50 transition-colors">
-                            <div>
-                                <p className="font-bold text-slate-800 text-lg">{service.name}</p>
-                            </div>
-                            <div className="text-lg font-bold text-green-600">
+                        <div key={service.id} onClick={() => {addToCart(service, 'service'); setActiveTab('cart'); setMobileView('cart');}} className="flex items-center justify-between mb-3 p-3 bg-white/80 rounded-xl shadow-sm border border-gray-200/50 cursor-pointer hover:bg-blue-50 transition-colors">
+                            <p className="font-bold text-slate-800 text-sm md:text-lg">{service.name}</p>
+                            <div className="text-sm md:text-lg font-bold text-green-600">
                                 {formatCurrency(service.price, storeSettings)}
                             </div>
                         </div>
@@ -307,7 +320,6 @@ const ReturnModal: React.FC<{ invoice: SaleInvoice, onClose: () => void, onSubmi
         const returnItems = Object.entries(returnQuantities)
             .filter(([, qty]) => Number(qty) > 0)
             .map(([key, qty]) => {
-                // FIX: Use lastIndexOf to handle IDs that might contain hyphens.
                 const lastDashIndex = key.lastIndexOf('-');
                 const id = key.substring(0, lastDashIndex);
                 const type = key.substring(lastDashIndex + 1);
@@ -318,21 +330,20 @@ const ReturnModal: React.FC<{ invoice: SaleInvoice, onClose: () => void, onSubmi
 
     return (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 modal-animate">
-            <div className="bg-white/80 backdrop-blur-xl p-6 rounded-2xl shadow-2xl border border-gray-200/80 w-full max-w-2xl max-h-[90vh] flex flex-col">
-                <div className="flex-shrink-0 flex justify-between items-center pb-4 border-b">
-                    <h2 className="text-xl font-bold">ثبت مرجوعی برای فاکتور <span className="font-mono">{invoice.id}</span></h2>
+            <div className="bg-white/95 backdrop-blur-xl p-4 md:p-6 rounded-2xl shadow-2xl border border-gray-200/80 w-full max-w-2xl max-h-[90vh] flex flex-col">
+                <div className="flex-shrink-0 flex justify-between items-center pb-3 border-b">
+                    <h2 className="text-lg md:text-xl font-bold">ثبت مرجوعی <span className="font-mono text-sm">{invoice.id.slice(0,8)}</span></h2>
                     <button onClick={onClose} className="p-1 rounded-full text-slate-500 hover:bg-slate-200/50"><XIcon /></button>
                 </div>
                 <div className="flex-grow overflow-y-auto pt-4 -mx-2 px-2">
-                    <p className="text-sm text-slate-600 mb-4">تعداد کالاهایی که مشتری مرجوع کرده است را وارد کنید.</p>
-                    <div className="space-y-4">
+                    <div className="space-y-3">
                         {invoice.items.map(item => {
                             const key = `${item.id}-${item.type}`;
                             return (
-                                <div key={key} className="flex items-center justify-between p-3 bg-white/70 rounded-lg border">
+                                <div key={key} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border">
                                     <div>
-                                        <p className="font-semibold">{item.name}</p>
-                                        <p className="text-xs text-slate-500">خریداری شده: {item.quantity} عدد</p>
+                                        <p className="font-semibold text-sm">{item.name}</p>
+                                        <p className="text-xs text-slate-500">خریداری شده: {item.quantity}</p>
                                     </div>
                                     <PackageUnitInput
                                         totalUnits={returnQuantities[key] || 0}
@@ -344,9 +355,9 @@ const ReturnModal: React.FC<{ invoice: SaleInvoice, onClose: () => void, onSubmi
                         })}
                     </div>
                 </div>
-                 <div className="flex-shrink-0 flex justify-end gap-3 mt-6 pt-4 border-t">
-                    <button onClick={onClose} className="px-6 py-3 rounded-lg bg-gray-200 hover:bg-gray-300 transition-colors font-semibold">لغو</button>
-                    <button onClick={handleSubmit} className="px-8 py-3 rounded-lg bg-blue-600 text-white hover:bg-blue-700 shadow-lg btn-primary font-semibold">ثبت مرجوعی</button>
+                 <div className="flex-shrink-0 flex justify-end gap-3 mt-4 pt-3 border-t">
+                    <button onClick={onClose} className="px-4 py-2 rounded-lg bg-gray-200 font-semibold text-sm">لغو</button>
+                    <button onClick={handleSubmit} className="px-6 py-2 rounded-lg bg-blue-600 text-white shadow-lg btn-primary font-semibold text-sm">ثبت مرجوعی</button>
                 </div>
             </div>
         </div>
@@ -392,7 +403,6 @@ const POS: React.FC = () => {
     const barcodeBuffer = useRef('');
     const barcodeTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [returnModalInvoice, setReturnModalInvoice] = useState<SaleInvoice | null>(null);
-    // FIX: Add a ref to control the recognition loop safely, preventing race conditions.
     const shouldRestartRecognition = useRef(false);
 
 
@@ -482,8 +492,6 @@ const POS: React.FC = () => {
                 setSearchTerm(transcript.trim());
             };
             
-            // FIX: This handler now restarts recognition if it's supposed to be active,
-            // creating a continuous listening experience without manual toggling for each search.
             recognitionRef.current.onend = () => {
                 if (shouldRestartRecognition.current) {
                     recognitionRef.current?.start();
@@ -520,15 +528,11 @@ const POS: React.FC = () => {
             return;
         }
         
-        // FIX: The logic is now based on the desired state. It tells the `onend` handler
-        // whether or not to restart, creating a robust loop that the user controls.
         if (isListening) {
-            // User wants to turn it OFF.
             shouldRestartRecognition.current = false;
             recognitionRef.current.stop();
             setIsListening(false);
         } else {
-            // User wants to turn it ON.
             setSearchTerm('');
             shouldRestartRecognition.current = true;
             recognitionRef.current.start();
@@ -668,7 +672,7 @@ const POS: React.FC = () => {
             
             <div className="md:flex h-full bg-transparent">
                 {/* Product View */}
-                <div className={`w-full md:w-1/2 p-4 md:p-6 flex-col ${mobileView === 'products' ? 'flex' : 'hidden'} md:flex h-full`}>
+                <div className={`w-full md:w-1/2 p-2 md:p-6 flex-col ${mobileView === 'products' ? 'flex' : 'hidden'} md:flex h-full`}>
                     <ProductSide 
                       {...{
                         searchContainerRef, memoFileInputRef, searchInputRef, searchTerm, setSearchTerm,
@@ -685,7 +689,7 @@ const POS: React.FC = () => {
                 </div>
 
                 {/* Cart View */}
-                <div className={`w-full md:w-1/2 bg-white/60 backdrop-blur-xl p-4 md:p-6 flex-col h-full border-r border-gray-200/60 md:shadow-2xl ${mobileView === 'cart' ? 'flex' : 'hidden'} md:flex`}>
+                <div className={`w-full md:w-1/2 bg-white/60 backdrop-blur-xl p-3 md:p-6 flex-col h-full border-r border-gray-200/60 md:shadow-2xl ${mobileView === 'cart' ? 'flex' : 'hidden'} md:flex`}>
                     <CartSide 
                        {...{
                          activeTab, setActiveTab, cart, filteredInvoices, services, setIsGalleryOpen, memoImages,
@@ -699,14 +703,19 @@ const POS: React.FC = () => {
                 </div>
             </div>
             
-             {/* Mobile Tab Navigator */}
-            <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-lg border-t border-gray-200/60 flex justify-around p-2 z-30">
-                 <button onClick={() => setMobileView('products')} className={`py-2 px-6 font-bold text-lg rounded-lg transition-colors ${mobileView === 'products' ? 'text-blue-600 bg-blue-100/70' : 'text-slate-500'}`}>
-                    فروشگاه
+             {/* Mobile Tab Navigator (Sticky Bottom) */}
+            <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-up flex justify-around p-2 z-50 h-[50px] items-center">
+                 <button onClick={() => setMobileView('products')} className={`flex flex-col items-center justify-center w-1/2 h-full transition-colors ${mobileView === 'products' ? 'text-blue-600' : 'text-slate-400'}`}>
+                     <PlusIcon className="w-6 h-6 mb-0.5" />
+                     <span className="text-xs font-bold">فروشگاه</span>
                 </button>
-                 <button onClick={() => setMobileView('cart')} className={`py-2 px-6 font-bold text-lg rounded-lg relative transition-colors ${mobileView === 'cart' ? 'text-blue-600 bg-blue-100/70' : 'text-slate-500'}`}>
-                    سبد خرید
-                    {cart.length > 0 && <span className="absolute top-1 right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">{cart.length}</span>}
+                 <button onClick={() => setMobileView('cart')} className={`flex flex-col items-center justify-center w-1/2 h-full transition-colors relative ${mobileView === 'cart' ? 'text-blue-600' : 'text-slate-400'}`}>
+                    <div className="relative">
+                        <div className="w-6 h-6 border-2 border-current rounded-md flex items-center justify-center text-[10px] font-bold mb-0.5">
+                           {cart.length > 0 ? cart.length : ''}
+                        </div>
+                    </div>
+                    <span className="text-xs font-bold">سبد خرید</span>
                 </button>
             </div>
 

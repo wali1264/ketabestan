@@ -193,7 +193,8 @@ const CartSide: React.FC<any> = ({
             )}
             
             {/* Cart Items List */}
-            <div className="flex-grow overflow-y-auto -mx-4 px-4 pb-24 md:pb-4">
+            {/* FIX: Increased padding-bottom (pb-32) to prevent last items from being hidden behind the two bottom fixed bars */}
+            <div className="flex-grow overflow-y-auto -mx-4 px-4 pb-32 md:pb-4">
                 {cart.length === 0 ? (
                     <div className="flex items-center justify-center h-40 md:h-full">
                         <p className="text-slate-500">سبد خرید خالی است.</p>
@@ -240,8 +241,8 @@ const CartSide: React.FC<any> = ({
                 </div>
             </div>
 
-            {/* Compact Fixed Footer for Mobile */}
-             <div className="md:hidden fixed bottom-[50px] left-0 right-0 bg-white border-t border-gray-200 px-3 py-2 z-20 shadow-[0_-2px_10px_rgba(0,0,0,0.05)] h-14 flex items-center justify-between gap-2">
+            {/* Compact Fixed Footer for Mobile - FIX: Increased Z-Index to 40 */}
+             <div className="md:hidden fixed bottom-[50px] left-0 right-0 bg-white border-t-2 border-gray-200 px-3 py-2 z-40 shadow-[0_-4px_20px_rgba(0,0,0,0.1)] h-14 flex items-center justify-between gap-2">
                 {/* Total Amount (Left - ~50%) */}
                 <div className="flex flex-col justify-center w-[45%]">
                     <span className="text-[10px] text-slate-500 font-bold">مبلغ کل</span>

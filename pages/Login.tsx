@@ -6,21 +6,13 @@ const Login: React.FC = () => {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
-    const [isLoggingIn, setIsLoggingIn] = useState(false);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
-        setIsLoggingIn(true);
-        try {
-            const result = await login(username, password);
-            if (!result.success) {
-                setError(result.message);
-            }
-        } catch (err) {
-            setError("یک خطای غیرمنتظره در هنگام ورود رخ داد.");
-        } finally {
-            setIsLoggingIn(false);
+        const result = await login(username, password);
+        if (!result.success) {
+            setError(result.message);
         }
     };
 
@@ -44,7 +36,6 @@ const Login: React.FC = () => {
                                 onChange={(e) => setUsername(e.target.value)}
                                 className="appearance-none rounded-none relative block w-full px-3 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm form-input"
                                 placeholder="نام کاربری"
-                                disabled={isLoggingIn}
                             />
                         </div>
                         <div>
@@ -58,7 +49,6 @@ const Login: React.FC = () => {
                                 onChange={(e) => setPassword(e.target.value)}
                                 className="appearance-none rounded-none relative block w-full px-3 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm form-input"
                                 placeholder="رمز عبور"
-                                disabled={isLoggingIn}
                             />
                         </div>
                     </div>
@@ -68,8 +58,8 @@ const Login: React.FC = () => {
                     )}
 
                     <div>
-                        <button type="submit" className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 btn-primary disabled:bg-blue-400" disabled={isLoggingIn}>
-                            {isLoggingIn ? 'در حال ورود...' : 'ورود'}
+                        <button type="submit" className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 btn-primary">
+                            ورود
                         </button>
                     </div>
                 </form>

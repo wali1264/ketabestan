@@ -2,7 +2,6 @@
 
 export interface ProductBatch {
   id: string; // Unique ID for the batch itself
-  productId: string; // Foreign key to the Product
   lotNumber: string;
   stock: number;
   purchasePrice: number;

@@ -1,4 +1,5 @@
 
+
 import React, { useState, useRef } from 'react';
 import type { Product } from '../types';
 import { identifyProductsFromImage } from '../services/geminiService';
@@ -54,15 +55,21 @@ const BulkAddModal: React.FC<BulkAddModalProps> = ({ onClose, onSave }) => {
     };
 
     const saveBulkProducts = () => {
+        // FIX: The generated object now correctly matches the `Product` interface by nesting
+        // batch-specific information inside a `batches` array.
         const newProducts: Product[] = identifiedProducts
             .filter(p => p.name && p.salePrice && p.purchasePrice && p.stock && p.lotNumber)
             .map(p => ({
                 id: crypto.randomUUID(),
                 name: p.name,
-                purchasePrice: parseFloat(p.purchasePrice) || 0,
                 salePrice: parseFloat(p.salePrice) || 0,
-                stock: parseInt(p.stock, 10) || 0,
-                lotNumber: p.lotNumber,
+                batches: [{
+                    id: crypto.randomUUID(),
+                    lotNumber: p.lotNumber,
+                    stock: parseInt(p.stock, 10) || 0,
+                    purchasePrice: parseFloat(p.purchasePrice) || 0,
+                    purchaseDate: new Date().toISOString()
+                }],
             }));
         
         if (newProducts.length > 0) {

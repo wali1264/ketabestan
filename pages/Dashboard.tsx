@@ -1,7 +1,8 @@
+
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import type { Product, ActivityLog } from '../types';
 import { useAppContext } from '../AppContext';
-import { POSIcon, InventoryIcon, PurchaseIcon, WarningIcon, BellIcon } from '../components/icons';
+import { POSIcon, InventoryIcon, PurchaseIcon, WarningIcon, BellIcon, UserGroupIcon } from '../components/icons';
 import { formatCurrency } from '../utils/formatters';
 import DateRangeFilter from '../components/DateRangeFilter';
 import ActivityDetailModal from '../components/ActivityDetailModal';
@@ -36,6 +37,9 @@ const Dashboard: React.FC = () => {
 
     const todaysSales = saleInvoices.filter(inv => isToday(new Date(inv.timestamp)));
     const totalSalesToday = todaysSales.reduce((sum, inv) => sum + inv.totalAmount, 0);
+    const totalCreditSalesToday = todaysSales
+        .filter(inv => inv.customerId)
+        .reduce((sum, inv) => sum + inv.totalAmount, 0);
     
     const productsWithTotalStock = products.map(p => ({
         ...p,
@@ -72,13 +76,13 @@ const Dashboard: React.FC = () => {
 
 
     const StatCard: React.FC<{ title: string; value: string; description: string; color: string, icon: React.ReactNode }> = ({ title, value, description, color, icon }) => (
-        <div className="bg-white/60 backdrop-blur-xl p-6 rounded-2xl shadow-lg border border-gray-200/60 flex flex-col justify-between transform transition-transform duration-300 hover:-translate-y-2">
+        <div className="bg-white/60 backdrop-blur-xl p-6 rounded-2xl shadow-lg border border-gray-200/60 flex flex-col justify-between transform transition-transform duration-300 hover:-translate-y-2 h-full">
             <div className="flex justify-between items-start">
                 <h3 className="text-lg font-semibold text-slate-700">{title}</h3>
                 <div className={`p-2 rounded-full bg-opacity-20 ${color.replace('text-', 'bg-')}`}>{icon}</div>
             </div>
             <div>
-                <p className={`text-5xl font-extrabold my-2 ${color}`}>{value}</p>
+                <p className={`text-4xl lg:text-5xl font-extrabold my-2 ${color}`}>{value}</p>
                 <p className="text-md text-slate-500">{description}</p>
             </div>
         </div>
@@ -167,8 +171,21 @@ const Dashboard: React.FC = () => {
           {expiringSoonProducts.length > 0 && <AlertCard title="کالاهای با انقضای نزدیک" items={expiringSoonProducts} color="red" type="expiry" />}
        </div>
       
-      <div className="grid grid-cols-1 gap-8 mb-10 sm:max-w-sm">
-        <StatCard title="مجموع فروش امروز" value={Math.round(totalSalesToday).toLocaleString('fa-IR')} description={storeSettings.currencyName} color="text-blue-600" icon={<POSIcon className="w-6 h-6 text-blue-600" />} />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
+        <StatCard 
+            title="مجموع فروش امروز" 
+            value={Math.round(totalSalesToday).toLocaleString('fa-IR')} 
+            description={storeSettings.currencyName} 
+            color="text-blue-600" 
+            icon={<POSIcon className="w-6 h-6 text-blue-600" />} 
+        />
+        <StatCard 
+            title="فروش نسیه امروز" 
+            value={Math.round(totalCreditSalesToday).toLocaleString('fa-IR')} 
+            description={storeSettings.currencyName} 
+            color="text-orange-600" 
+            icon={<UserGroupIcon className="w-6 h-6 text-orange-600" />} 
+        />
       </div>
 
       <div className="bg-white/60 backdrop-blur-xl p-4 md:p-6 rounded-2xl shadow-lg border border-gray-200/60">

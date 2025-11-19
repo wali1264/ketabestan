@@ -32,7 +32,7 @@ const persianDigitsMap: { [key: string]: string } = { '۰': '0', '۱': '1', '۲'
 const wordToNumberMap: { [key: string]: number } = {
   'صفر': 0, 'یک': 1, 'دو': 2, 'سه': 3, 'چهار': 4, 'پنج': 5, 'شش': 6, 'هفت': 7, 'هشت': 8, 'نه': 9, 'ده': 10,
   'یازده': 11, 'دوازده': 12, 'سیزده': 13, 'چهارده': 14, 'پانزده': 15, 'شانزده': 16, 'هفده': 17, 'هجده': 18, 'نوزده': 19,
-  'بیست': 20, 'سی': 30, 'چهل': 40, 'پنجاه': 50, 'шصت': 60, 'هفتاد': 70, 'هشتاد': 80, 'نود': 90,
+  'بیست': 20, 'سی': 30, 'چهل': 40, 'پنجاه': 50, 'شصت': 60, 'هفتاد': 70, 'هشتاد': 80, 'نود': 90,
   'zero': 0, 'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5, 'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10,
   'eleven': 11, 'twelve': 12, 'thirteen': 13, 'fourteen': 14, 'fifteen': 15, 'sixteen': 16, 'seventeen': 17, 'eighteen': 18, 'nineteen': 19,
   'twenty': 20, 'thirty': 30, 'forty': 40, 'fifty': 50, 'sixty': 60, 'seventy': 70, 'eighty': 80, 'ninety': 90,
@@ -279,11 +279,7 @@ const ProductModal: React.FC<ProductModalProps> = ({ product, onClose, onSave })
                 barcode: formData.barcode?.trim() || undefined,
                 manufacturer: formData.manufacturer?.trim() || undefined,
             };
-            // FIX: Add productId to satisfy the FirstBatchData type.
-            // When creating a new product, this will be an empty string, and the data
-            // layer is expected to replace it. For edits, it uses the existing product ID.
             const firstBatchData: FirstBatchData = {
-                productId: product?.id || '',
                 purchasePrice: Math.round(Number(formData.purchasePrice)),
                 stock: Number(formData.stock),
                 lotNumber: formData.lotNumber.trim(),
@@ -299,10 +295,7 @@ const ProductModal: React.FC<ProductModalProps> = ({ product, onClose, onSave })
                     // Note: This modal doesn't edit batches, only general info.
                     // The AppContext update function should handle this gracefully.
                 }
-                // FIX: Cast updatedProduct to `any` to satisfy the onSave prop signature.
-                // The component comment indicates this is a known "hack" due to an inconsistent
-                // type definition in the parent component's handler.
-                onSave(updatedProduct as any, firstBatchData);
+                onSave(updatedProduct, firstBatchData); // A bit of a hack, needs to be handled in parent
             } else {
                  onSave(productData, firstBatchData);
             }
@@ -326,7 +319,9 @@ const ProductModal: React.FC<ProductModalProps> = ({ product, onClose, onSave })
             if (nextIndex < focusable.length) {
                 (focusable[nextIndex] as HTMLElement).focus();
             } else {
-                 handleSubmit(e as any); 
+                 // FIX: The `handleSubmit` function expects a FormEvent, but was being called with a
+                 // KeyboardEvent. This satisfies the type system by casting through `unknown`.
+                 handleSubmit(e as unknown as React.FormEvent); 
             }
         }
     };

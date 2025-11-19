@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import type { Supplier, Customer, Employee, AnyTransaction, PayrollTransaction } from '../types';
 import { XIcon, PrintIcon } from './icons';
@@ -35,17 +36,17 @@ const TransactionHistoryModal: React.FC<TransactionHistoryModalProps> = ({ perso
 
 
     const transactionTable = (
-        <table className="min-w-full text-center responsive-table">
-            <thead>
+        <table className="min-w-full text-center responsive-table border-collapse">
+            <thead className="bg-slate-100 sticky top-0 z-10 shadow-sm">
                 <tr>
-                    <th className="p-3 font-bold text-slate-700">تاریخ</th>
-                    <th className="p-3 font-bold text-slate-700">شرح</th>
-                    <th className="p-3 font-bold text-slate-700">بدهکار</th>
-                    <th className="p-3 font-bold text-slate-700">بستانکار</th>
-                    <th className="p-3 font-bold text-slate-700"></th>
+                    <th className="p-3 font-bold text-slate-700 border-b">تاریخ</th>
+                    <th className="p-3 font-bold text-slate-700 border-b">شرح</th>
+                    <th className="p-3 font-bold text-slate-700 border-b">بدهکار</th>
+                    <th className="p-3 font-bold text-slate-700 border-b">بستانکار</th>
+                    <th className="p-3 font-bold text-slate-700 border-b"></th>
                 </tr>
             </thead>
-            <tbody className="bg-white/50">
+            <tbody className="bg-white">
                 {filteredTransactions.map(t => {
                     let debit = 0;
                     let credit = 0;
@@ -66,14 +67,14 @@ const TransactionHistoryModal: React.FC<TransactionHistoryModalProps> = ({ perso
                     }
 
                     return (
-                        <tr key={t.id}>
+                        <tr key={t.id} className="hover:bg-blue-50 transition-colors border-b last:border-0">
                             <td data-label="تاریخ" className="p-3 text-slate-600">{new Date(t.date).toLocaleDateString('fa-IR')}</td>
                             <td data-label="شرح" className="p-3 text-slate-800 font-semibold">{t.description}</td>
                             <td data-label="بدهکار" className="p-3 text-red-600">{debit > 0 ? Math.round(debit).toLocaleString('fa-IR') : '-'}</td>
                             <td data-label="بستانکار" className="p-3 text-green-600">{credit > 0 ? Math.round(credit).toLocaleString('fa-IR') : '-'}</td>
                             <td className="p-3 actions-cell">
                                 {t.type === 'payment' && (
-                                    <button onClick={() => onReprint(t.id)} className="p-2 rounded-full text-gray-500 hover:text-green-600 hover:bg-green-100/50 transition-colors" title="چاپ مجدد رسید">
+                                    <button onClick={() => onReprint(t.id)} className="p-2 rounded-full text-gray-500 hover:text-green-600 hover:bg-green-100 transition-colors" title="چاپ مجدد رسید">
                                         <PrintIcon className="w-5 h-5" />
                                     </button>
                                 )}
@@ -88,35 +89,46 @@ const TransactionHistoryModal: React.FC<TransactionHistoryModalProps> = ({ perso
 
     return (
         <>
-            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-0 md:p-4 modal-animate">
-                <div className="bg-white/80 backdrop-blur-xl p-6 rounded-none md:rounded-2xl shadow-2xl border border-gray-200/80 w-full h-full md:max-w-4xl md:h-[90vh] flex flex-col">
-                    <div className="flex justify-between items-center pb-4 border-b border-slate-200">
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[70] p-4 modal-animate">
+                <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full h-full md:max-w-5xl md:h-[85vh] flex flex-col overflow-hidden">
+                    {/* Header */}
+                    <div className="flex flex-shrink-0 justify-between items-center p-5 border-b border-gray-200 bg-slate-50">
                         <div>
                             <h2 className="text-xl md:text-2xl font-bold text-slate-800">صورت حساب: {person.name}</h2>
-                            <p className="text-md text-slate-600">
-                                موجودی نهایی: <span className="font-bold">{formatCurrency(person.balance, storeSettings)}</span>
+                            <p className="text-md text-slate-600 mt-1">
+                                موجودی نهایی: <span dir="ltr" className={`font-bold text-lg ${person.balance > 0 ? 'text-red-600' : 'text-green-600'}`}>{formatCurrency(Math.abs(person.balance), storeSettings)} {person.balance > 0 ? '(بدهکار)' : '(بستانکار)'}</span>
                             </p>
                         </div>
-                        <div className="flex items-center gap-2">
-                            <button onClick={() => setIsPrintPreviewOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-slate-200 rounded-md text-slate-700 hover:bg-slate-300 transition-colors"><PrintIcon /> چاپ</button>
-                            <button onClick={onClose} className="p-1 rounded-full text-slate-500 hover:bg-slate-200/50 transition-colors"><XIcon /></button>
+                        <div className="flex items-center gap-3">
+                            <button onClick={() => setIsPrintPreviewOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors font-semibold">
+                                <PrintIcon className="w-5 h-5" /> 
+                                <span className="hidden md:inline">چاپ گزارش</span>
+                            </button>
+                            <button onClick={onClose} className="p-2 rounded-full bg-gray-100 text-gray-600 hover:bg-red-100 hover:text-red-600 transition-colors">
+                                <XIcon className="w-6 h-6" />
+                            </button>
                         </div>
                     </div>
                     
-                    <div className="my-4 p-2 bg-slate-100/50 rounded-lg">
+                    {/* Filters */}
+                    <div className="flex-shrink-0 p-4 bg-white border-b border-gray-100">
                         <DateRangeFilter onFilterChange={(start, end) => setDateRange({ start, end })} />
                     </div>
 
-                    <div className="flex-grow overflow-y-auto -mx-2 px-2">
-                        {transactionTable}
-                        {filteredTransactions.length === 0 && (
-                            <div className="text-center p-16">
-                                <p className="text-slate-500 text-lg">در بازه زمانی انتخاب شده، تراکنشی یافت نشد.</p>
-                            </div>
-                        )}
+                    {/* Table Content */}
+                    <div className="flex-grow overflow-y-auto p-0 bg-slate-50">
+                        <div className="bg-white shadow-sm min-h-full">
+                            {transactionTable}
+                            {filteredTransactions.length === 0 && (
+                                <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+                                    <p className="text-lg">در بازه زمانی انتخاب شده، تراکنشی یافت نشد.</p>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>
+            
             {isPrintPreviewOpen && (
                 <ReportPrintPreviewModal
                     title={`صورت حساب ${person.name}`}

@@ -1,3 +1,4 @@
+
 import React, { useEffect } from 'react';
 
 interface ToastProps {
@@ -17,7 +18,7 @@ const Toast: React.FC<ToastProps> = ({ message, onClose }) => {
   }, [onClose]);
 
   return (
-    <div className="fixed bottom-5 left-1/2 -translate-x-1/2 bg-blue-600 text-white py-3 px-6 rounded-full shadow-2xl z-50 animate-toast-in">
+    <div className="fixed bottom-5 left-1/2 -translate-x-1/2 bg-blue-600 text-white py-3 px-6 rounded-full shadow-2xl z-[60] animate-toast-in">
        <style>{`
         @keyframes toast-in {
             from { transform: translate(-50%, 100%); opacity: 0; }

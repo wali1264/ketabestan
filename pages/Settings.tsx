@@ -198,11 +198,11 @@ const UsersAndRolesTab: React.FC<TabProps> = ({ showToast }) => {
         setRolePermissions(role.permissions);
     };
 
-    const handleSaveRole = () => {
+    const handleSaveRole = async () => {
         if (!roleName) { showToast("نام نقش نمی‌تواند خالی باشد."); return; }
-        const result = editingRole 
+        const result = await (editingRole 
             ? updateRole({ ...editingRole, name: roleName, permissions: rolePermissions })
-            : addRole({ name: roleName, permissions: rolePermissions });
+            : addRole({ name: roleName, permissions: rolePermissions }));
         
         showToast(result.message);
         if(result.success) {
@@ -223,14 +223,14 @@ const UsersAndRolesTab: React.FC<TabProps> = ({ showToast }) => {
         setPassword('');
     };
     
-    const handleSaveUser = () => {
+    const handleSaveUser = async () => {
         if(!username || !userRoleId || (!editingUser && !password)) {
             showToast("لطفا تمام فیلدها را پر کنید.");
             return;
         }
-        const result = editingUser
+        const result = await (editingUser
             ? updateUser({ id: editingUser.id, username, roleId: userRoleId, password: password || undefined })
-            : addUser({ username, password, roleId: userRoleId });
+            : addUser({ username, password, roleId: userRoleId }));
 
         showToast(result.message);
         if(result.success) {

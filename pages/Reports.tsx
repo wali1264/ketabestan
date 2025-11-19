@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { useAppContext } from '../AppContext';
 import DateRangeFilter from '../components/DateRangeFilter';
@@ -27,23 +28,17 @@ const Reports: React.FC = () => {
         const totalSales = filteredInvoices.reduce((sum, inv) => sum + inv.subtotal, 0);
         const totalDiscount = filteredInvoices.reduce((sum, inv) => sum + inv.totalDiscount, 0);
         
-        const costOfGoodsSold = filteredInvoices.reduce((totalCost, inv) => {
-            return totalCost + inv.items.reduce((itemCost, item) => {
-                if (item.type === 'product' && item.purchasePrice) {
-                    return itemCost + (item.purchasePrice * item.quantity);
-                }
-                return itemCost;
-            }, 0);
-        }, 0);
-
-        const grossProfit = totalSales - totalDiscount - costOfGoodsSold;
-
+        // Note: Cost of Goods Sold logic removed as database doesn't support historical cost tracking yet.
+        // Consequently, Gross Profit is also omitted to prevent misleading data.
+        
         const totalExpenses = expenses.filter(exp => {
             const expTime = new Date(exp.date).getTime();
             return expTime >= dateRange.start.getTime() && expTime <= dateRange.end.getTime();
         }).reduce((sum, exp) => sum + exp.amount, 0);
 
-        const netIncome = grossProfit - totalExpenses;
+        // Net Income = (Sales - Discount) - Expenses
+        // This represents "Cash Flow" profit.
+        const netIncome = (totalSales - totalDiscount) - totalExpenses;
 
         const topProducts = filteredInvoices
             .flatMap(inv => inv.items)
@@ -74,7 +69,7 @@ const Reports: React.FC = () => {
                 return acc;
             }, [] as { cashier: string, totalSales: number, invoiceCount: number }[]);
 
-        return { totalSales, totalDiscount, costOfGoodsSold, grossProfit, totalExpenses, netIncome, topProducts, salesByEmployee };
+        return { totalSales, totalDiscount, totalExpenses, netIncome, topProducts, salesByEmployee };
 
     }, [saleInvoices, expenses, dateRange]);
     
@@ -132,13 +127,26 @@ const Reports: React.FC = () => {
 
     const openHistoryModal = () => { if(accountReportData?.person) setHistoryModalOpen(true); };
 
+    // Smart Stat Card with Adaptive Typography
+    const SmartStatCard: React.FC<{ title: string, value: string, color: string }> = ({ title, value, color }) => {
+        // Determine font size based on length
+        let fontSizeClass = 'text-3xl';
+        if (value.length > 25) fontSizeClass = 'text-lg';
+        else if (value.length > 20) fontSizeClass = 'text-xl';
+        else if (value.length > 15) fontSizeClass = 'text-2xl';
 
-    const ReportCard: React.FC<{ title: string, value: string, color: string }> = ({ title, value, color }) => (
-        <div className="bg-white/70 p-4 rounded-xl shadow-md border">
-            <h4 className="text-md font-semibold text-slate-600 mb-1">{title}</h4>
-            <p className={`text-3xl font-bold ${color}`}>{value}</p>
-        </div>
-    );
+        return (
+            <div className="bg-white/70 p-5 rounded-xl shadow-md border flex flex-col justify-center h-32 transition-transform duration-200 hover:-translate-y-1">
+                <h4 className="text-md font-semibold text-slate-600 mb-2 truncate" title={title}>{title}</h4>
+                <p 
+                    className={`${fontSizeClass} font-extrabold ${color} whitespace-nowrap overflow-hidden text-ellipsis`} 
+                    title={value} // Native tooltip for truncated text
+                >
+                    {value}
+                </p>
+            </div>
+        );
+    };
     
     const handlePrintReport = (title: string, content: React.ReactNode) => {
         setPrintModalContent({ title, content });
@@ -149,13 +157,11 @@ const Reports: React.FC = () => {
             case 'sales': 
                 const salesReportContent = (
                     <div className="space-y-6">
-                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-4">
-                            <ReportCard title="مجموع فروش" value={formatCurrency(salesData.totalSales, storeSettings)} color="text-blue-600" />
-                            <ReportCard title="مجموع تخفیف" value={formatCurrency(salesData.totalDiscount, storeSettings)} color="text-green-600" />
-                            <ReportCard title="هزینه کالا" value={formatCurrency(salesData.costOfGoodsSold, storeSettings)} color="text-amber-600" />
-                            <ReportCard title="سود ناخالص" value={formatCurrency(salesData.grossProfit, storeSettings)} color="text-teal-600" />
-                            <ReportCard title="مصارف" value={formatCurrency(salesData.totalExpenses, storeSettings)} color="text-orange-600" />
-                            <ReportCard title="درآمد خالص نهایی" value={formatCurrency(salesData.netIncome, storeSettings)} color="text-purple-600" />
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                            <SmartStatCard title="مجموع فروش" value={formatCurrency(salesData.totalSales, storeSettings)} color="text-blue-600" />
+                            <SmartStatCard title="مجموع تخفیف" value={formatCurrency(salesData.totalDiscount, storeSettings)} color="text-green-600" />
+                            <SmartStatCard title="مصارف" value={formatCurrency(salesData.totalExpenses, storeSettings)} color="text-orange-600" />
+                            <SmartStatCard title="درآمد خالص نهایی" value={formatCurrency(salesData.netIncome, storeSettings)} color="text-purple-600" />
                         </div>
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                             <div className="p-4 bg-white/70 rounded-xl shadow-md border">
@@ -179,8 +185,8 @@ const Reports: React.FC = () => {
                 const inventoryReportContent = (
                     <div className="space-y-6">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <ReportCard title="ارزش کل انبار" value={formatCurrency(inventoryData.totalValue, storeSettings)} color="text-blue-600" />
-                            <ReportCard title="تعداد کل اقلام" value={inventoryData.totalItems.toLocaleString('fa-IR')} color="text-green-600" />
+                            <SmartStatCard title="ارزش کل انبار" value={formatCurrency(inventoryData.totalValue, storeSettings)} color="text-blue-600" />
+                            <SmartStatCard title="تعداد کل اقلام" value={inventoryData.totalItems.toLocaleString('fa-IR')} color="text-green-600" />
                         </div>
                         <div className="p-4 bg-white/70 rounded-xl shadow-md border">
                             <h3 className="font-bold text-lg mb-2">گزارش کامل موجودی</h3>

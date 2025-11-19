@@ -85,7 +85,7 @@ const FloatingGallery: React.FC<FloatingGalleryProps> = ({ images, onClose, onDe
                     cursor: 'move',
                 } : {
                     position: 'fixed',
-                    bottom: '80px',
+                    bottom: '140px', // Higher on mobile to avoid footer overlap
                     right: '20px'
                 }}
                 onMouseDown={handleMouseDown}
@@ -111,7 +111,8 @@ const FloatingGallery: React.FC<FloatingGalleryProps> = ({ images, onClose, onDe
                 className={`
                     fixed flex flex-col bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-200/80 z-[100] overflow-hidden
                     md:w-80
-                    w-[90%] inset-0 m-auto h-fit max-h-[80vh] md:h-auto md:inset-auto
+                    w-[90%] left-[5%] top-[10%] h-fit max-h-[70vh]
+                    md:h-auto md:inset-auto
                 `}
                 style={{
                     // Apply absolute positioning only on desktop
@@ -124,6 +125,10 @@ const FloatingGallery: React.FC<FloatingGalleryProps> = ({ images, onClose, onDe
                 >
                     <h3 className="font-bold text-slate-700 text-sm md:text-base">گالری ({currentIndex + 1}/{images.length})</h3>
                     <div className="flex items-center space-x-1 space-x-reverse">
+                        <button onClick={handleDelete} className="p-1.5 rounded-full text-red-500 hover:bg-red-100 transition-colors" title="حذف تصویر">
+                            <TrashIcon className="w-5 h-5"/>
+                        </button>
+                        <div className="w-px h-4 bg-slate-300 mx-1"></div>
                         <button onClick={() => setIsMinimized(true)} className="p-1 rounded-full text-slate-600 hover:bg-slate-200"><MinimizeIcon className="w-5 h-5"/></button>
                         <button onClick={onClose} className="p-1 rounded-full text-slate-600 hover:bg-slate-200"><XIcon className="w-5 h-5"/></button>
                     </div>
@@ -147,25 +152,14 @@ const FloatingGallery: React.FC<FloatingGalleryProps> = ({ images, onClose, onDe
                             <ChevronDoubleRightIcon className="w-5 h-5" />
                         </div>
                      </div>
+                     
+                     {/* Mobile dots indicator (Overlay) */}
+                     <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1 md:hidden">
+                        {images.slice(0, 5).map((_, idx) => (
+                            <div key={idx} className={`w-1.5 h-1.5 rounded-full shadow-sm ${idx === (currentIndex % 5) ? 'bg-blue-600' : 'bg-white/80'}`}></div>
+                        ))}
+                     </div>
                 </div>
-
-                {images.length > 0 && (
-                    <div className="bg-white p-3 flex justify-between items-center border-t border-slate-200">
-                        <button onClick={handleDelete} className="bg-red-50 text-red-600 p-2 rounded-lg hover:bg-red-100 transition-colors flex items-center gap-2">
-                            <TrashIcon className="w-5 h-5"/>
-                            <span className="text-sm font-semibold">حذف</span>
-                        </button>
-                        
-                        <div className="flex items-center space-x-3 space-x-reverse md:hidden">
-                             {/* Mobile dots indicator */}
-                             <div className="flex gap-1">
-                                {images.map((_, idx) => (
-                                    <div key={idx} className={`w-1.5 h-1.5 rounded-full ${idx === currentIndex ? 'bg-blue-600' : 'bg-gray-300'}`}></div>
-                                )).slice(0, 5)} 
-                             </div>
-                        </div>
-                    </div>
-                )}
             </div>
         </>
     );

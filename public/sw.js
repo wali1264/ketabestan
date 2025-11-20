@@ -1,12 +1,14 @@
 
-const CACHE_NAME = 'ketabestan-v6-embedded';
+const CACHE_NAME = 'ketabestan-v7-custom-icons';
 const CORE_ASSETS = [
   '/',
   '/index.html',
-  '/manifest.json'
+  '/manifest.json',
+  '/icon-192.png',
+  '/icon-512.png'
 ];
 
-// 1. Install: Cache Core Assets Only
+// 1. Install: Cache Core Assets
 self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(
@@ -14,7 +16,7 @@ self.addEventListener('install', (event) => {
       return Promise.all(
         CORE_ASSETS.map(url => {
           return cache.add(url).catch(err => {
-            console.warn('SW: Failed to cache critical asset:', url, err);
+            console.warn('SW: Warning - Failed to cache asset:', url, err);
           });
         })
       );

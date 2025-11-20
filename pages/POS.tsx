@@ -603,7 +603,12 @@ const POS: React.FC = () => {
             reader.onloadend = async () => {
                 const imageData = reader.result as string;
                 await db.addMemoImage(imageData);
-                showToast("یادداشت تصویری با موفقیت ذخیره شد.");
+                // Check for offline status to reassure user
+                if (!navigator.onLine) {
+                    showToast("ذخیره در حافظه آفلاین (اینترنت قطع است)");
+                } else {
+                    showToast("یادداشت تصویری با موفقیت ذخیره شد.");
+                }
                 await loadMemoImages();
             };
             reader.readAsDataURL(file);

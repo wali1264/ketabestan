@@ -1,78 +1,75 @@
 
-const CACHE_NAME = 'ketabestan-pwa-v4';
-const ASSETS_TO_CACHE = [
+const CACHE_NAME = 'ketabestan-v5-offline';
+const CORE_ASSETS = [
   '/',
   '/index.html',
   '/manifest.json'
-  // Note: Icons are removed from here to prevent installation failure if they return 404.
-  // The browser will still fetch them for the UI, but the SW won't crash.
 ];
 
-// 1. Install Event: Cache core assets
+// 1. Install: Cache Core Assets Only (Fail-safe)
 self.addEventListener('install', (event) => {
-  self.skipWaiting(); // Force activation immediately
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log('SW: Pre-caching critical assets');
-      // Using cache.addAll is atomic. If one fails, all fail.
-      // Since we only list '/' and index/manifest, this is safe.
-      return cache.addAll(ASSETS_TO_CACHE).catch(err => {
-          console.error('SW: Cache addAll failed', err);
-      });
+      // We use map/catch to ensure one missing file doesn't break the whole install
+      return Promise.all(
+        CORE_ASSETS.map(url => {
+          return cache.add(url).catch(err => {
+            console.warn('SW: Failed to cache critical asset:', url, err);
+          });
+        })
+      );
     })
   );
 });
 
-// 2. Activate Event: Clean up old caches
+// 2. Activate: Cleanup Old Caches
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keyList) => {
       return Promise.all(keyList.map((key) => {
         if (key !== CACHE_NAME) {
-          console.log('SW: Removing old cache', key);
           return caches.delete(key);
         }
       }));
     })
   );
-  return self.clients.claim(); // Take control of all clients
+  return self.clients.claim();
 });
 
-// 3. Fetch Event: Network First for Documents, Cache First for Assets
+// 3. Fetch: Stale-While-Revalidate Strategy
+// This is crucial for offline functionality. It tries to serve from cache first,
+// but also updates the cache from network in the background.
 self.addEventListener('fetch', (event) => {
-  // Skip cross-origin requests
-  if (!event.request.url.startsWith(self.location.origin)) return;
-
-  // Navigation requests (HTML pages) -> Network First, fall back to Cache
-  if (event.request.mode === 'navigate') {
-    event.respondWith(
-      fetch(event.request)
-        .then((networkResponse) => {
-          return caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, networkResponse.clone());
-            return networkResponse;
-          });
-        })
-        .catch(() => {
-          return caches.match('/index.html'); // Fallback to offline page
-        })
-    );
+  // Skip non-GET requests and cross-origin
+  if (event.request.method !== 'GET' || !event.request.url.startsWith(self.location.origin)) {
     return;
   }
 
-  // Asset requests (JS, CSS, Images) -> Stale-While-Revalidate
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
-      const fetchPromise = fetch(event.request).then((networkResponse) => {
-        if (networkResponse && networkResponse.status === 200) {
-             caches.open(CACHE_NAME).then((cache) => {
-                 cache.put(event.request, networkResponse.clone());
-             });
-        }
+      // Network request to update cache
+      const networkFetch = fetch(event.request).then((networkResponse) => {
+        // Clone response to store in cache
+        const responseClone = networkResponse.clone();
+        caches.open(CACHE_NAME).then((cache) => {
+          try {
+             // Only cache valid responses
+             if(networkResponse.status === 200) {
+                cache.put(event.request, responseClone);
+             }
+          } catch(e) { console.error(e); }
+        });
         return networkResponse;
-      }).catch(e => console.log('SW: Fetch failed (offline)', e));
+      }).catch(() => {
+         // If network fails and no cache (should happen rarely for visited pages)
+         if (event.request.mode === 'navigate') {
+            return caches.match('/index.html');
+         }
+      });
 
-      return cachedResponse || fetchPromise;
+      // Return cached response immediately if available, otherwise wait for network
+      return cachedResponse || networkFetch;
     })
   );
 });

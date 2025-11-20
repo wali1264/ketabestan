@@ -1,5 +1,5 @@
 
-const CACHE_NAME = 'ketabestan-v7-custom-icons';
+const CACHE_NAME = 'ketabestan-v8-final-icons';
 const CORE_ASSETS = [
   '/',
   '/index.html',
@@ -13,11 +13,12 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
+      console.log('SW: Opening cache and starting pre-cache...');
       return Promise.all(
         CORE_ASSETS.map(url => {
-          return cache.add(url).catch(err => {
-            console.warn('SW: Warning - Failed to cache asset:', url, err);
-          });
+          return cache.add(url)
+            .then(() => console.log(`SW: Successfully cached ${url}`))
+            .catch(err => console.error(`SW: Failed to cache ${url}. Check if file exists.`, err));
         })
       );
     })
@@ -30,6 +31,7 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((keyList) => {
       return Promise.all(keyList.map((key) => {
         if (key !== CACHE_NAME) {
+          console.log('SW: Removing old cache', key);
           return caches.delete(key);
         }
       }));
@@ -38,7 +40,7 @@ self.addEventListener('activate', (event) => {
   return self.clients.claim();
 });
 
-// 3. Fetch: Network First for freshness, fallback to Cache
+// 3. Fetch: Network First, falling back to Cache
 self.addEventListener('fetch', (event) => {
   // Skip non-GET requests, cross-origin, and data URIs
   if (event.request.method !== 'GET' || !event.request.url.startsWith(self.location.origin) || event.request.url.startsWith('data:')) {
@@ -61,7 +63,7 @@ self.addEventListener('fetch', (event) => {
          // Network failed, try cache
          return caches.match(event.request).then((cachedResponse) => {
              if (cachedResponse) return cachedResponse;
-             // Fallback for navigation requests
+             // Fallback for navigation requests (SPA support)
              if (event.request.mode === 'navigate') {
                  return caches.match('/index.html');
              }

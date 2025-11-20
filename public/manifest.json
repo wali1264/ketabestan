@@ -1,14 +1,16 @@
+
 {
-  "id": "/",
   "name": "کتابستان - سیستم مدیریت فروشگاه",
   "short_name": "کتابستان",
   "description": "سیستم جامع مدیریت فروشگاه لوازم تحریر و کتابفروشی",
+  "id": "/",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "background_color": "#fdfcfb",
   "theme_color": "#3b82f6",
-  "orientation": "portrait-primary",
+  "orientation": "portrait",
+  "categories": ["productivity", "finance", "business"],
   "icons": [
     {
       "src": "/icon-192.png",

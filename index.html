@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="fa" dir="rtl">
 <head>
@@ -5,6 +6,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <meta name="theme-color" content="#3b82f6" />
   <meta name="description" content="کتابستان - سیستم مدیریت فروشگاه" />
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="کتابستان">
   <title>کتابستان</title>
   
   <!-- PWA Configuration -->
@@ -211,10 +215,10 @@
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('/sw.js')
           .then(registration => {
-            console.log('ServiceWorker registration successful with scope: ', registration.scope);
+            console.log('SW registered: ', registration.scope);
           })
           .catch(err => {
-            console.log('ServiceWorker registration failed: ', err);
+            console.log('SW registration failed: ', err);
           });
       });
     }

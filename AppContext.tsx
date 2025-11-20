@@ -112,6 +112,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 api.getActivities()
             ]);
 
+            // --- Persistent Login Logic ---
+            const storedUserId = localStorage.getItem('stationery_user_id');
+            let restoredUser = null;
+            let isAuth = false;
+
+            if (storedUserId) {
+                const foundUser = users.find(u => u.id === storedUserId);
+                if (foundUser) {
+                    restoredUser = foundUser;
+                    isAuth = true;
+                }
+            }
+            // ------------------------------
+
             setState(prev => ({
                 ...prev,
                 storeSettings: settings,
@@ -130,6 +144,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 purchaseInvoices: invoices.purchaseInvoices,
                 activities: activity,
                 saleInvoiceCounter: invoices.saleInvoices.length,
+                // Restore session
+                isAuthenticated: isAuth,
+                currentUser: restoredUser
             }));
         } catch (error) {
             console.error("Error fetching data:", error);
@@ -160,12 +177,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const login = async (username: string, password: string): Promise<{ success: boolean; message: string }> => {
         // Since we are using custom auth table, we check against loaded users or fetch specific one.
         // We already loaded users in fetchData, so we check local state which mirrors DB.
-        // For higher security, we should query DB directly here to ensure latest password.
         try {
             const users = await api.getUsers();
             const user = users.find(u => u.username === username);
             
             if (user && user.password === password) {
+                // Save session to localStorage
+                localStorage.setItem('stationery_user_id', user.id);
+                
                 setState(prev => ({ ...prev, isAuthenticated: true, currentUser: user, users }));
                 return { success: true, message: 'ورود موفق' };
             }
@@ -177,6 +196,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
 
     const logout = () => {
+        // Clear session from localStorage
+        localStorage.removeItem('stationery_user_id');
         setState(prev => ({ ...prev, isAuthenticated: false, currentUser: null }));
     };
 
@@ -644,11 +665,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             newBatches.push({
                 id: batchId,
                 product_id: item.productId,
-                lotNumber: item.lotNumber,
+                lot_number: item.lotNumber,
                 stock: item.quantity,
-                purchasePrice: item.purchasePrice,
-                purchaseDate: invoice.timestamp,
-                expiryDate: item.expiryDate
+                purchase_price: item.purchasePrice,
+                purchase_date: invoice.timestamp,
+                expiry_date: item.expiryDate
             });
             // Update local state preview
             const p = localProducts.find((p:Product) => p.id === item.productId);

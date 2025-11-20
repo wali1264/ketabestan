@@ -27,20 +27,27 @@ const Dashboard: React.FC = () => {
         };
     }, []);
 
+    // Robust "Today" calculation using timestamps to ensure mobile compatibility
+    const { totalSalesToday, totalCreditSalesToday } = useMemo(() => {
+        const now = new Date();
+        // Set start of today (00:00:00) local time
+        const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).getTime();
+        // Set end of today (23:59:59) local time
+        const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).getTime();
 
-    const isToday = (date: Date) => {
-        const today = new Date();
-        return date.getFullYear() === today.getFullYear() &&
-               date.getMonth() === today.getMonth() &&
-               date.getDate() === today.getDate();
-    };
+        const todayInvoices = saleInvoices.filter(inv => {
+            const invTime = new Date(inv.timestamp).getTime();
+            return invTime >= startOfDay && invTime <= endOfDay;
+        });
 
-    const todaysSales = saleInvoices.filter(inv => isToday(new Date(inv.timestamp)));
-    const totalSalesToday = todaysSales.reduce((sum, inv) => sum + inv.totalAmount, 0);
-    const totalCreditSalesToday = todaysSales
-        .filter(inv => inv.customerId)
-        .reduce((sum, inv) => sum + inv.totalAmount, 0);
-    
+        const sales = todayInvoices.reduce((sum, inv) => sum + inv.totalAmount, 0);
+        const credit = todayInvoices
+            .filter(inv => inv.customerId)
+            .reduce((sum, inv) => sum + inv.totalAmount, 0);
+            
+        return { totalSalesToday: sales, totalCreditSalesToday: credit };
+    }, [saleInvoices]);
+
     const productsWithTotalStock = products.map(p => ({
         ...p,
         totalStock: p.batches.reduce((sum, b) => sum + b.stock, 0)

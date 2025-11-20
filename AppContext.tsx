@@ -383,6 +383,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     
     const deleteProduct = (productId: string) => {
         if (!checkOnline()) return;
+
+        // --- DATA INTEGRITY GUARD ---
+        // Check if product has history in sales or purchases
+        const hasSalesHistory = state.saleInvoices.some(inv => 
+            inv.items.some(item => item.type === 'product' && item.id === productId)
+        );
+        const hasPurchaseHistory = state.purchaseInvoices.some(inv => 
+            inv.items.some(item => item.productId === productId)
+        );
+
+        if (hasSalesHistory || hasPurchaseHistory) {
+            showToast('⛔ خطا: این محصول دارای سابقه خرید یا فروش است و برای حفظ صحت حسابداری قابل حذف نیست. پیشنهاد می‌شود آن را ویرایش کرده یا نام آن را تغییر دهید.');
+            return;
+        }
+        // -----------------------------
+
         const product = state.products.find(p => p.id === productId);
         api.deleteProduct(productId).then(() => {
             addActivityLocal('inventory', `محصول "${product?.name}" را حذف کرد`, state.currentUser!.username);

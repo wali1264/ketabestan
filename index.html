@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="fa" dir="rtl">
 <head>
@@ -138,58 +139,45 @@
 
 
     @media print {
-      /* Use auto size to let printer driver decide (better for thermal rolls) */
       @page {
         size: auto;
-        margin: 0.2cm; 
+        margin: 10mm; /* Safety margin of 10mm */
       }
       
-      /* 1. Reset Global Styles */
+      /* 1. Reset Global Styles & Hide Everything safely */
       html, body {
         height: auto !important;
-        min-height: 0 !important;
         overflow: visible !important;
+        background: #fff !important;
         margin: 0 !important;
         padding: 0 !important;
-        background: #fff !important;
-        color: #000 !important;
-      }
-      
-      /* 2. Hide everything by default */
-      body > * {
-        display: none !important;
-      }
-      
-      /* 3. Show and Position Print Content */
-      /* Note: We ensure the modal wrapper is not display:none if it contains the print content */
-      body > div:has(#print-modal-content),
-      .fixed.inset-0 {
-         position: static !important;
-         display: block !important;
-         width: 100% !important;
-         height: auto !important;
-         background: none !important;
-         padding: 0 !important;
-         z-index: auto !important;
       }
 
-      #print-modal-content, #print-modal-content * {
+      /* Use visibility hidden instead of display none to prevent layout collapse if needed, but ensure they take no space */
+      body * {
+        visibility: hidden;
+      }
+
+      /* 2. Target the specific print container and its children */
+      #print-modal-content, 
+      #print-modal-content * {
         visibility: visible !important;
       }
 
+      /* 3. Position the print content absolutely to 0,0 of the page */
       #print-modal-content {
         position: absolute !important;
         left: 0 !important;
         top: 0 !important;
         width: 100% !important;
-        height: auto !important;
         margin: 0 !important;
         padding: 0 !important;
         
-        /* Critical: Disable flex/grid to allow natural flow */
-        display: block !important; 
+        /* Ensure it's not constrained */
         overflow: visible !important;
+        height: auto !important;
         
+        /* Reset styling */
         background: white !important;
         color: black !important;
         box-shadow: none !important;
@@ -237,7 +225,7 @@
         word-wrap: break-word;
       }
       
-      /* 6. Hide Interactive Elements */
+      /* 6. Hide Interactive Elements explicitly */
       .no-print, 
       button,
       [role="button"] {

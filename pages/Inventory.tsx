@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import type { Product, ProductBatch } from '../types';
 import { useAppContext } from '../AppContext';
@@ -37,7 +38,6 @@ const Inventory: React.FC = () => {
     const handleDeleteProduct = (productId: string) => {
         if (window.confirm('آیا از حذف این محصول اطمینان دارید؟')) {
             deleteProduct(productId);
-            showToast('محصول با موفقیت حذف شد.');
         }
     };
 

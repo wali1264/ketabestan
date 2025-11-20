@@ -1,17 +1,16 @@
 
-const CACHE_NAME = 'ketabestan-v5-offline';
+const CACHE_NAME = 'ketabestan-v6-embedded';
 const CORE_ASSETS = [
   '/',
   '/index.html',
   '/manifest.json'
 ];
 
-// 1. Install: Cache Core Assets Only (Fail-safe)
+// 1. Install: Cache Core Assets Only
 self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      // We use map/catch to ensure one missing file doesn't break the whole install
       return Promise.all(
         CORE_ASSETS.map(url => {
           return cache.add(url).catch(err => {
@@ -37,39 +36,35 @@ self.addEventListener('activate', (event) => {
   return self.clients.claim();
 });
 
-// 3. Fetch: Stale-While-Revalidate Strategy
-// This is crucial for offline functionality. It tries to serve from cache first,
-// but also updates the cache from network in the background.
+// 3. Fetch: Network First for freshness, fallback to Cache
 self.addEventListener('fetch', (event) => {
-  // Skip non-GET requests and cross-origin
-  if (event.request.method !== 'GET' || !event.request.url.startsWith(self.location.origin)) {
+  // Skip non-GET requests, cross-origin, and data URIs
+  if (event.request.method !== 'GET' || !event.request.url.startsWith(self.location.origin) || event.request.url.startsWith('data:')) {
     return;
   }
 
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      // Network request to update cache
-      const networkFetch = fetch(event.request).then((networkResponse) => {
-        // Clone response to store in cache
-        const responseClone = networkResponse.clone();
-        caches.open(CACHE_NAME).then((cache) => {
-          try {
-             // Only cache valid responses
-             if(networkResponse.status === 200) {
+    fetch(event.request)
+      .then((networkResponse) => {
+        // Clone and cache valid responses
+        if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
+             const responseClone = networkResponse.clone();
+             caches.open(CACHE_NAME).then((cache) => {
                 cache.put(event.request, responseClone);
-             }
-          } catch(e) { console.error(e); }
-        });
+             });
+        }
         return networkResponse;
-      }).catch(() => {
-         // If network fails and no cache (should happen rarely for visited pages)
-         if (event.request.mode === 'navigate') {
-            return caches.match('/index.html');
-         }
-      });
-
-      // Return cached response immediately if available, otherwise wait for network
-      return cachedResponse || networkFetch;
-    })
+      })
+      .catch(() => {
+         // Network failed, try cache
+         return caches.match(event.request).then((cachedResponse) => {
+             if (cachedResponse) return cachedResponse;
+             // Fallback for navigation requests
+             if (event.request.mode === 'navigate') {
+                 return caches.match('/index.html');
+             }
+             return new Response("Offline", { status: 503, statusText: "Offline" });
+         });
+      })
   );
 });

@@ -211,15 +211,22 @@
   <div id="root"></div>
   <script type="module" src="./index.tsx"></script>
   <script>
+    // PWA Registration Script
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('/sw.js')
           .then(registration => {
-            console.log('SW registered: ', registration.scope);
+            console.log('SW registered successfully:', registration.scope);
           })
           .catch(err => {
-            console.log('SW registration failed: ', err);
+            console.error('SW registration failed:', err);
           });
+      });
+      
+      // Debug: Listen for install prompt availability
+      window.addEventListener('beforeinstallprompt', (e) => {
+          console.log('👍 Install Prompt is ready! The app is installable.');
+          // We can optionally save the event 'e' to trigger it manually later
       });
     }
   </script>

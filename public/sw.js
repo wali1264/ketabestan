@@ -1,20 +1,24 @@
 
-const CACHE_NAME = 'ketabestan-v2';
+const CACHE_NAME = 'ketabestan-pwa-v4';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
-  '/manifest.json',
-  '/icon-192.png',
-  '/icon-512.png'
+  '/manifest.json'
+  // Note: Icons are removed from here to prevent installation failure if they return 404.
+  // The browser will still fetch them for the UI, but the SW won't crash.
 ];
 
-// 1. Install Event: Force cache key files immediately
+// 1. Install Event: Cache core assets
 self.addEventListener('install', (event) => {
-  self.skipWaiting(); // Force activation
+  self.skipWaiting(); // Force activation immediately
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log('SW: Pre-caching core assets');
-      return cache.addAll(ASSETS_TO_CACHE);
+      console.log('SW: Pre-caching critical assets');
+      // Using cache.addAll is atomic. If one fails, all fail.
+      // Since we only list '/' and index/manifest, this is safe.
+      return cache.addAll(ASSETS_TO_CACHE).catch(err => {
+          console.error('SW: Cache addAll failed', err);
+      });
     })
   );
 });
@@ -25,39 +29,49 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((keyList) => {
       return Promise.all(keyList.map((key) => {
         if (key !== CACHE_NAME) {
+          console.log('SW: Removing old cache', key);
           return caches.delete(key);
         }
       }));
     })
   );
-  return self.clients.claim(); // Take control of all clients immediately
+  return self.clients.claim(); // Take control of all clients
 });
 
-// 3. Fetch Event: Cache First for core assets, Network First for others
+// 3. Fetch Event: Network First for Documents, Cache First for Assets
 self.addEventListener('fetch', (event) => {
-  // Ignore non-GET or API requests (let them go network only or handled differently)
-  if (event.request.method !== 'GET') return;
+  // Skip cross-origin requests
+  if (!event.request.url.startsWith(self.location.origin)) return;
 
-  const url = new URL(event.request.url);
+  // Navigation requests (HTML pages) -> Network First, fall back to Cache
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          return caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, networkResponse.clone());
+            return networkResponse;
+          });
+        })
+        .catch(() => {
+          return caches.match('/index.html'); // Fallback to offline page
+        })
+    );
+    return;
+  }
 
-  // Strategy: Stale-While-Revalidate for most things
+  // Asset requests (JS, CSS, Images) -> Stale-While-Revalidate
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
-      // Even if we have it in cache, fetch fresh version in background to update cache for next time
       const fetchPromise = fetch(event.request).then((networkResponse) => {
-        // Check if valid response
-        if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
-          const responseClone = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseClone);
-          });
+        if (networkResponse && networkResponse.status === 200) {
+             caches.open(CACHE_NAME).then((cache) => {
+                 cache.put(event.request, networkResponse.clone());
+             });
         }
         return networkResponse;
-      }).catch(() => {
-         // Network failed, nothing to do here as we return cachedResponse below
-      });
+      }).catch(e => console.log('SW: Fetch failed (offline)', e));
 
-      // Return cached response immediately if available, else wait for network
       return cachedResponse || fetchPromise;
     })
   );

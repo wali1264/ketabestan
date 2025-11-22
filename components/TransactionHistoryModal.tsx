@@ -1,4 +1,5 @@
 
+
 import React, { useState, useMemo } from 'react';
 import type { Supplier, Customer, Employee, AnyTransaction, PayrollTransaction } from '../types';
 import { XIcon, PrintIcon } from './icons';
@@ -34,6 +35,30 @@ const TransactionHistoryModal: React.FC<TransactionHistoryModalProps> = ({ perso
             .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     }, [transactions, dateRange]);
 
+    // Calculate separated balances for Suppliers
+    const balances = useMemo(() => {
+        if (type !== 'supplier') return null;
+        
+        let debtAFN = 0;
+        let paidAFN = 0;
+        let debtUSD = 0;
+        let paidUSD = 0;
+
+        filteredTransactions.forEach(t => {
+            const isUSD = (t as any).currency === 'USD';
+            if (t.type === 'purchase') {
+                if (isUSD) debtUSD += t.amount; else debtAFN += t.amount;
+            } else if (t.type === 'payment' || t.type === 'purchase_return') {
+                if (isUSD) paidUSD += t.amount; else paidAFN += t.amount;
+            }
+        });
+
+        return {
+            afn: debtAFN - paidAFN,
+            usd: debtUSD - paidUSD
+        };
+    }, [filteredTransactions, type]);
+
 
     const transactionTable = (
         <table className="min-w-full text-center responsive-table border-collapse">
@@ -50,6 +75,7 @@ const TransactionHistoryModal: React.FC<TransactionHistoryModalProps> = ({ perso
                 {filteredTransactions.map(t => {
                     let debit = 0;
                     let credit = 0;
+                    const currencySymbol = (t as any).currency === 'USD' ? '$' : '';
                     
                     if (type === 'supplier') {
                         if (t.type === 'purchase') debit = t.amount;
@@ -70,8 +96,8 @@ const TransactionHistoryModal: React.FC<TransactionHistoryModalProps> = ({ perso
                         <tr key={t.id} className="hover:bg-blue-50 transition-colors border-b last:border-0">
                             <td data-label="تاریخ" className="p-3 text-slate-600">{new Date(t.date).toLocaleDateString('fa-IR')}</td>
                             <td data-label="شرح" className="p-3 text-slate-800 font-semibold">{t.description}</td>
-                            <td data-label="بدهکار" className="p-3 text-red-600">{debit > 0 ? Math.round(debit).toLocaleString('fa-IR') : '-'}</td>
-                            <td data-label="بستانکار" className="p-3 text-green-600">{credit > 0 ? Math.round(credit).toLocaleString('fa-IR') : '-'}</td>
+                            <td data-label="بدهکار" className="p-3 text-red-600 font-mono">{debit > 0 ? `${Math.round(debit).toLocaleString('fa-IR')} ${currencySymbol}` : '-'}</td>
+                            <td data-label="بستانکار" className="p-3 text-green-600 font-mono">{credit > 0 ? `${Math.round(credit).toLocaleString('fa-IR')} ${currencySymbol}` : '-'}</td>
                             <td className="p-3 actions-cell">
                                 {t.type === 'payment' && (
                                     <button onClick={() => onReprint(t.id)} className="p-2 rounded-full text-gray-500 hover:text-green-600 hover:bg-green-100 transition-colors" title="چاپ مجدد رسید">
@@ -89,15 +115,26 @@ const TransactionHistoryModal: React.FC<TransactionHistoryModalProps> = ({ perso
 
     return (
         <>
-            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[70] p-4 modal-animate">
-                <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full h-full md:max-w-5xl md:h-[85vh] flex flex-col overflow-hidden">
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 modal-animate">
+                <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full h-[90vh] md:max-w-5xl md:h-[85vh] flex flex-col overflow-hidden">
                     {/* Header */}
                     <div className="flex flex-shrink-0 justify-between items-center p-5 border-b border-gray-200 bg-slate-50">
                         <div>
                             <h2 className="text-xl md:text-2xl font-bold text-slate-800">صورت حساب: {person.name}</h2>
-                            <p className="text-md text-slate-600 mt-1">
-                                موجودی نهایی: <span dir="ltr" className={`font-bold text-lg ${person.balance > 0 ? 'text-red-600' : 'text-green-600'}`}>{formatCurrency(Math.abs(person.balance), storeSettings)} {person.balance > 0 ? '(بدهکار)' : '(بستانکار)'}</span>
-                            </p>
+                            {type === 'supplier' && balances ? (
+                                <div className="flex gap-4 mt-2">
+                                    <span className="text-sm font-bold text-slate-700 bg-white border px-2 py-1 rounded">
+                                        مانده افغانی: <span dir="ltr" className={balances.afn > 0 ? 'text-red-600' : 'text-green-600'}>{Math.round(balances.afn).toLocaleString()} {storeSettings.currencyName}</span>
+                                    </span>
+                                    <span className="text-sm font-bold text-slate-700 bg-white border px-2 py-1 rounded">
+                                        مانده دلاری: <span dir="ltr" className={balances.usd > 0 ? 'text-red-600' : 'text-green-600'}>{Math.round(balances.usd).toLocaleString()} $</span>
+                                    </span>
+                                </div>
+                            ) : (
+                                <p className="text-md text-slate-600 mt-1">
+                                    موجودی نهایی: <span dir="ltr" className={`font-bold text-lg ${person.balance > 0 ? 'text-red-600' : 'text-green-600'}`}>{formatCurrency(Math.abs(person.balance), storeSettings)} {person.balance > 0 ? '(بدهکار)' : '(بستانکار)'}</span>
+                                </p>
+                            )}
                         </div>
                         <div className="flex items-center gap-3">
                             <button onClick={() => setIsPrintPreviewOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors font-semibold">
@@ -137,7 +174,14 @@ const TransactionHistoryModal: React.FC<TransactionHistoryModalProps> = ({ perso
                 >
                     {transactionTable}
                      <div className="mt-6 pt-4 border-t text-left font-bold text-xl">
-                        موجودی نهایی: {formatCurrency(person.balance, storeSettings)}
+                        {type === 'supplier' && balances ? (
+                            <div className="flex flex-col gap-2">
+                                <div>مانده افغانی: <span dir="ltr">{Math.round(balances.afn).toLocaleString()} {storeSettings.currencyName}</span></div>
+                                <div>مانده دلاری: <span dir="ltr">{Math.round(balances.usd).toLocaleString()} $</span></div>
+                            </div>
+                        ) : (
+                            <>موجودی نهایی: {formatCurrency(person.balance, storeSettings)}</>
+                        )}
                     </div>
                 </ReportPrintPreviewModal>
             )}

@@ -24,7 +24,7 @@ const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({ person, trans
     const partyLabel = type === 'supplier' ? 'پرداخت شده به' : 'دریافت شده از';
 
     return (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[80] p-4">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
             <div className="bg-white p-8 rounded-xl shadow-2xl w-full max-w-2xl max-h-[95vh] flex flex-col overflow-hidden">
                 <div id="print-modal-content" className="text-gray-900 font-sans flex-grow overflow-y-auto">
                     <div className="text-center mb-6 border-b pb-4">

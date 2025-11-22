@@ -69,6 +69,8 @@ export interface PurchaseInvoice {
   items: PurchaseInvoiceItem[];
   totalAmount: number;
   timestamp: string;
+  currency?: 'AFN' | 'USD'; // New field
+  exchangeRate?: number;    // New field
 }
 
 export interface ActivityLog {
@@ -89,7 +91,7 @@ export interface Supplier {
     contactPerson?: string;
     phone?: string;
     address?: string;
-    balance: number; // Positive means we owe them
+    balance: number; // Positive means we owe them (Approximate total in AFN)
 }
 
 export interface SupplierTransaction {
@@ -100,6 +102,7 @@ export interface SupplierTransaction {
     date: string;
     description: string; // e.g., Invoice # or Payment to X
     invoiceId?: string; // Link to the purchase invoice
+    currency?: 'AFN' | 'USD'; // Track specific currency for this transaction
 }
 
 
@@ -211,7 +214,6 @@ export interface AppState {
     roles: Role[];
 }
 
-// FIX: Add centralized Web Speech API types.
 // --- Types for Web Speech API ---
 export interface SpeechRecognitionResult {
     isFinal: boolean;

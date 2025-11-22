@@ -1,4 +1,5 @@
 
+
 import React, { useState } from 'react';
 import { useAppContext } from '../AppContext';
 import type { Supplier, Employee, Customer, Expense, AnyTransaction, CustomerTransaction, SupplierTransaction, PayrollTransaction } from '../types';
@@ -9,7 +10,7 @@ import TransactionHistoryModal from '../components/TransactionHistoryModal';
 import ReceiptPreviewModal from '../components/ReceiptPreviewModal';
 
 const Modal: React.FC<{ title: string, onClose: () => void, children: React.ReactNode }> = ({ title, onClose, children }) => (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[70] p-4 modal-animate">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 modal-animate">
         <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-lg overflow-hidden">
             <div className="flex justify-between items-center p-4 border-b border-slate-100 bg-slate-50">
                 <h2 className="text-xl font-bold text-slate-800">{title}</h2>
@@ -29,6 +30,10 @@ const SuppliersTab = () => {
     const [toast, setToast] = useState('');
     const [historyModalData, setHistoryModalData] = useState<{ person: Supplier, transactions: SupplierTransaction[] } | null>(null);
     const [receiptModalData, setReceiptModalData] = useState<{ person: Supplier, transaction: SupplierTransaction } | null>(null);
+    
+    // Payment State
+    const [paymentCurrency, setPaymentCurrency] = useState<'AFN' | 'USD'>('AFN');
+    const [exchangeRate, setExchangeRate] = useState('');
 
     const showToast = (message: string) => { setToast(message); setTimeout(() => setToast(''), 3000); };
 
@@ -45,6 +50,8 @@ const SuppliersTab = () => {
     
     const handleOpenPayModal = (supplier: Supplier) => {
         setSelectedSupplier(supplier);
+        setPaymentCurrency('AFN');
+        setExchangeRate('');
         setIsPayModalOpen(true);
     };
 
@@ -54,17 +61,31 @@ const SuppliersTab = () => {
         
         const formData = new FormData(e.currentTarget);
         const amount = Number(formData.get('amount'));
-        const description = formData.get('description') as string || 'پرداخت نقدی';
+        const description = formData.get('description') as string || 'پرداخت وجه';
 
         if (!amount || amount <= 0) {
             showToast("مبلغ باید بزرگتر از صفر باشد.");
             return;
         }
+        
+        if (paymentCurrency === 'USD' && (!exchangeRate || Number(exchangeRate) <= 0)) {
+            showToast("لطفاً نرخ ارز را وارد کنید.");
+            return;
+        }
 
-        const newTransaction = addSupplierPayment(selectedSupplier.id, amount, description);
-        setIsPayModalOpen(false);
-        setReceiptModalData({ person: selectedSupplier, transaction: newTransaction });
-        setSelectedSupplier(null);
+        const newTransaction = addSupplierPayment(
+            selectedSupplier.id, 
+            amount, 
+            description, 
+            paymentCurrency, 
+            paymentCurrency === 'USD' ? Number(exchangeRate) : 1
+        );
+        
+        if (newTransaction) {
+            setIsPayModalOpen(false);
+            setReceiptModalData({ person: selectedSupplier, transaction: newTransaction });
+            setSelectedSupplier(null);
+        }
     };
     
     const handleViewHistory = (supplier: Supplier) => {
@@ -148,7 +169,29 @@ const SuppliersTab = () => {
             {isPayModalOpen && selectedSupplier && (
                  <Modal title={`ثبت پرداخت برای ${selectedSupplier.name}`} onClose={() => setIsPayModalOpen(false)}>
                     <form onSubmit={handleAddPaymentForm} className="space-y-4">
-                        <input name="amount" type="number" placeholder={`مبلغ پرداخت (${storeSettings.currencyName})`} className="w-full p-3 border rounded-lg form-input" required />
+                        <div className="flex gap-4 p-2 bg-blue-50 rounded-lg">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" checked={paymentCurrency === 'AFN'} onChange={() => setPaymentCurrency('AFN')} className="form-radio text-blue-600" />
+                                <span>افغانی (AFN)</span>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" checked={paymentCurrency === 'USD'} onChange={() => setPaymentCurrency('USD')} className="form-radio text-green-600" />
+                                <span>دلار (USD)</span>
+                            </label>
+                        </div>
+                        {paymentCurrency === 'USD' && (
+                             <div className="flex items-center gap-2">
+                                <span className="text-sm whitespace-nowrap">نرخ تبدیل:</span>
+                                <input 
+                                    type="number" 
+                                    value={exchangeRate} 
+                                    onChange={e => setExchangeRate(e.target.value)} 
+                                    placeholder="68" 
+                                    className="w-full p-2 border rounded-lg form-input font-mono" 
+                                />
+                            </div>
+                        )}
+                        <input name="amount" type="number" placeholder={`مبلغ پرداخت (${paymentCurrency === 'USD' ? '$' : storeSettings.currencyName})`} className="w-full p-3 border rounded-lg form-input" required />
                         <input name="description" placeholder="بابت (اختیاری)" className="w-full p-3 border rounded-lg form-input" />
                         <button type="submit" className="w-full bg-green-600 text-white p-3 rounded-lg btn-primary font-semibold">ثبت و چاپ رسید</button>
                     </form>
@@ -200,7 +243,6 @@ const PayrollTab = () => {
         const amount = Number(new FormData(ev.currentTarget).get('amount'));
         if (!amount || amount <= 0) return;
         addEmployeeAdvance(employeeId, amount);
-        showToast("پیش پرداخت با موفقیت ثبت شد.");
         (ev.target as HTMLFormElement).reset();
     };
 
@@ -322,9 +364,11 @@ const CustomersTab = () => {
             return;
         }
         const newTransaction = addCustomerPayment(selectedCustomer.id, amount, description);
-        setIsPayModalOpen(false);
-        setReceiptModalData({ person: selectedCustomer, transaction: newTransaction });
-        setSelectedCustomer(null);
+        if (newTransaction) {
+            setIsPayModalOpen(false);
+            setReceiptModalData({ person: selectedCustomer, transaction: newTransaction });
+            setSelectedCustomer(null);
+        }
     };
 
     const handleViewHistory = (customer: Customer) => {

@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, ReactNode, useState, useEffect } from 'react';
 import type {
     Product, ProductBatch, SaleInvoice, PurchaseInvoice, PurchaseInvoiceItem, InvoiceItem,
@@ -62,9 +61,9 @@ interface AppContextType extends AppState {
     
     // Accounting
     addSupplier: (supplier: Omit<Supplier, 'id' | 'balance'>) => void;
-    addSupplierPayment: (supplierId: string, amount: number, description: string) => SupplierTransaction | null;
+    addSupplierPayment: (supplierId: string, amount: number, description: string, currency?: 'AFN' | 'USD', exchangeRate?: number) => SupplierTransaction;
     addCustomer: (customer: Omit<Customer, 'id' | 'balance'>) => void;
-    addCustomerPayment: (customerId: string, amount: number, description: string) => CustomerTransaction | null;
+    addCustomerPayment: (customerId: string, amount: number, description: string) => CustomerTransaction;
     addEmployee: (employee: Omit<Employee, 'id'|'balance'>) => void;
     addEmployeeAdvance: (employeeId: string, amount: number) => void;
     processAndPaySalaries: () => { success: boolean; message: string };
@@ -92,21 +91,25 @@ const getDefaultState = (): AppState => {
 // Helper to generate short sequential IDs (F1, F2, etc.)
 const generateNextId = (prefix: string, ids: string[]): string => {
     let max = 0;
+    const regex = new RegExp(`^${prefix}(\\d+)$`); // Strict regex: Prefix + Digits ONLY
     for (const id of ids) {
-        if (id.startsWith(prefix)) {
-            const numStr = id.substring(prefix.length);
-            // Ensure it's purely digits to avoid parsing odd formats
-            if (/^\d+$/.test(numStr)) {
-                 const num = parseInt(numStr, 10);
-                 // Ignore timestamp-based legacy IDs (which are usually > 1 trillion)
-                 // We want to find the max of the SEQUENCE (e.g., F1, F2... F100).
-                 if (!isNaN(num) && num < 100000000000) {
-                     if (num > max) max = num;
-                 }
-            }
+        const match = id.match(regex);
+        if (match) {
+             const num = parseInt(match[1], 10);
+             // Ignore ridiculously large numbers (timestamps)
+             if (!isNaN(num) && num < 100000000000) {
+                 if (num > max) max = num;
+             }
         }
     }
     return `${prefix}${max + 1}`;
+};
+
+const checkOnline = (): boolean => {
+    if (!navigator.onLine) {
+        return false;
+    }
+    return true;
 };
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -116,22 +119,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     const showToast = (message: string) => setToastMessage(message);
 
-    // --- OFFLINE GUARD HELPER ---
-    const checkOnline = (): boolean => {
-        if (!navigator.onLine) {
-            showToast("شما آفلاین هستید. اتصال اینترنت را بررسی کنید ⚠️");
-            return false;
-        }
-        return true;
-    };
-
     // --- Initial Data Load from Supabase ---
     const fetchData = async () => {
-        if (!navigator.onLine) {
-            setIsLoading(false);
-            return; // Don't attempt fetch if offline
-        }
-
         setIsLoading(true);
         try {
             const [settings, users, roles, products, services, entities, transactions, invoices, activity] = await Promise.all([
@@ -184,7 +173,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             }));
         } catch (error) {
             console.error("Error fetching data:", error);
-            showToast("خطا در دریافت اطلاعات از سرور ❌");
+            showToast("⚠️ خطا در دریافت اطلاعات از سرور.");
         } finally {
             setIsLoading(false);
         }
@@ -192,20 +181,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     useEffect(() => {
         fetchData();
-        
-        const handleOnline = () => {
-            showToast("اتصال اینترنت برقرار شد ✅");
-            fetchData();
-        };
-        const handleOffline = () => showToast("اتصال اینترنت قطع شد ⚠️");
-
-        window.addEventListener('online', handleOnline);
-        window.addEventListener('offline', handleOffline);
-
-        return () => {
-            window.removeEventListener('online', handleOnline);
-            window.removeEventListener('offline', handleOffline);
-        };
     }, []);
 
     const addActivityLocal = async (type: ActivityLog['type'], description: string, user: string, refId?: string, refType?: ActivityLog['refType']) => {
@@ -215,18 +190,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         // Update local state immediately
         setState(prev => ({ ...prev, activities: [newActivity, ...prev.activities] }));
         // Send to DB
-        if (navigator.onLine) {
-            try {
-                await api.addActivity(newActivity);
-            } catch (e) { console.error("Failed to log activity", e); }
-        }
+        try {
+            await api.addActivity(newActivity);
+        } catch (e) { console.error("Failed to log activity", e); }
         return newActivity;
     };
     
     // AUTH & RBAC LOGIC
     const login = async (username: string, password: string): Promise<{ success: boolean; message: string }> => {
-        if (!checkOnline()) return { success: false, message: 'آفلاین هستید ⚠️' };
-
+        // Since we are using custom auth table, we check against loaded users or fetch specific one.
+        // We already loaded users in fetchData, so we check local state which mirrors DB.
+        if (!checkOnline()) return { success: false, message: '⚠️ شما آفلاین هستید. لطفاً اتصال اینترنت را بررسی کنید.' };
         try {
             const users = await api.getUsers();
             const user = users.find(u => u.username === username);
@@ -236,13 +210,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 localStorage.setItem('stationery_user_id', user.id);
                 
                 setState(prev => ({ ...prev, isAuthenticated: true, currentUser: user, users }));
-                return { success: true, message: 'ورود موفق ✅' };
+                return { success: true, message: '✅ ورود موفق' };
             }
         } catch (e) {
             console.error(e);
-            return { success: false, message: 'خطا در برقراری ارتباط ❌' };
+            return { success: false, message: '❌ خطا در برقراری ارتباط.' };
         }
-        return { success: false, message: 'نام کاربری یا رمز عبور اشتباه است ❌' };
+        return { success: false, message: 'نام کاربری یا رمز عبور اشتباه است.' };
     };
 
     const logout = () => {
@@ -259,64 +233,64 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     
     // --- User Management ---
     const addUser = async (userData: Omit<User, 'id'>) => {
-        if (!checkOnline()) return { success: false, message: 'آفلاین هستید ⚠️' };
+        if (!checkOnline()) return { success: false, message: '⚠️ شما آفلاین هستید.' };
         try {
              if (state.users.some(u => u.username === userData.username)) {
-                return { success: false, message: 'این نام کاربری قبلا استفاده شده ❌' };
+                return { success: false, message: 'این نام کاربری قبلا استفاده شده.' };
             }
             const newUser = await api.addUser(userData);
             addActivityLocal('inventory', `کاربر جدید "${userData.username}" را اضافه کرد`, state.currentUser!.username);
             setState(prev => ({ ...prev, users: [...prev.users, newUser] }));
-            return { success: true, message: 'کاربر جدید با موفقیت افزوده شد ✅' };
-        } catch (e) { console.error(e); return { success: false, message: 'خطا در ذخیره کاربر ❌' }; }
+            return { success: true, message: '✅ کاربر جدید با موفقیت افزوده شد.' };
+        } catch (e) { console.error(e); return { success: false, message: '❌ خطا در ذخیره کاربر.' }; }
     };
 
     const updateUser = async (userData: Partial<User> & { id: string }) => {
-        if (!checkOnline()) return { success: false, message: 'آفلاین هستید ⚠️' };
+        if (!checkOnline()) return { success: false, message: '⚠️ شما آفلاین هستید.' };
         try {
              await api.updateUser(userData);
              addActivityLocal('inventory', `کاربر "${userData.username || '?'}" را ویرایش کرد`, state.currentUser!.username);
              setState(prev => ({ ...prev, users: prev.users.map(u => u.id === userData.id ? { ...u, ...userData } : u) }));
-             return { success: true, message: 'کاربر با موفقیت بروزرسانی شد ✅' };
-        } catch (e) { return { success: false, message: 'خطا در بروزرسانی ❌' }; }
+             return { success: true, message: '✅ کاربر با موفقیت بروزرسانی شد.' };
+        } catch (e) { return { success: false, message: '❌ خطا در بروزرسانی.' }; }
     };
 
     const deleteUser = async (userId: string) => {
-         if (!checkOnline()) return;
+         if (!checkOnline()) { showToast("⚠️ شما آفلاین هستید."); return; }
          const user = state.users.find(u => u.id === userId);
          try {
             await api.deleteUser(userId);
             addActivityLocal('inventory', `کاربر "${user?.username}" را حذف کرد`, state.currentUser!.username);
             setState(prev => ({ ...prev, users: prev.users.filter(u => u.id !== userId) }));
-            showToast("کاربر حذف شد ✅");
-         } catch (e) { showToast("خطا در حذف کاربر ❌"); }
+            showToast("✅ کاربر حذف شد.");
+         } catch (e) { showToast("❌ خطا در حذف کاربر."); }
     };
 
     // --- Role Management ---
     const addRole = async (roleData: Omit<Role, 'id'>) => {
-        if (!checkOnline()) return { success: false, message: 'آفلاین هستید ⚠️' };
+        if (!checkOnline()) return { success: false, message: '⚠️ شما آفلاین هستید.' };
         try {
             const newRole = await api.addRole(roleData);
             addActivityLocal('inventory', `نقش جدید "${roleData.name}" را ایجاد کرد`, state.currentUser!.username);
             setState(prev => ({ ...prev, roles: [...prev.roles, newRole] }));
-            return { success: true, message: 'نقش جدید افزوده شد ✅' };
-        } catch (e) { return { success: false, message: 'خطا در افزودن نقش ❌' }; }
+            return { success: true, message: '✅ نقش جدید افزوده شد.' };
+        } catch (e) { return { success: false, message: '❌ خطا در افزودن نقش.' }; }
     };
 
     const updateRole = async (roleData: Role) => {
-        if (!checkOnline()) return { success: false, message: 'آفلاین هستید ⚠️' };
+        if (!checkOnline()) return { success: false, message: '⚠️ شما آفلاین هستید.' };
         try {
             await api.updateRole(roleData);
             addActivityLocal('inventory', `نقش "${roleData.name}" را ویرایش کرد`, state.currentUser!.username);
             setState(prev => ({ ...prev, roles: prev.roles.map(r => r.id === roleData.id ? roleData : r) }));
-            return { success: true, message: 'نقش بروزرسانی شد ✅' };
-        } catch (e) { return { success: false, message: 'خطا ❌' }; }
+            return { success: true, message: '✅ نقش بروزرسانی شد.' };
+        } catch (e) { return { success: false, message: '❌ خطا.' }; }
     };
 
     const deleteRole = async (roleId: string) => {
-        if (!checkOnline()) return;
+        if (!checkOnline()) { showToast("⚠️ شما آفلاین هستید."); return; }
         if (state.users.some(u => u.roleId === roleId)) {
-            showToast("نمی‌توان نقشی را که به یک کاربر اختصاص داده شده حذف کرد ❌");
+            showToast("نمی‌توان نقشی را که به یک کاربر اختصاص داده شده حذف کرد.");
             return;
         }
         try {
@@ -324,11 +298,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             await api.deleteRole(roleId);
             addActivityLocal('inventory', `نقش "${role?.name}" را حذف کرد`, state.currentUser!.username);
             setState(prev => ({ ...prev, roles: prev.roles.filter(r => r.id !== roleId) }));
-            showToast("نقش حذف شد ✅");
-        } catch(e) { showToast("خطا در حذف نقش ❌"); }
+        } catch(e) { showToast("❌ خطا در حذف نقش."); }
     };
 
-    // BACKUP & RESTORE
+    // BACKUP & RESTORE (Kept local for now, but data comes from state)
     const exportData = () => {
         const dataStr = JSON.stringify(state, null, 2);
         const blob = new Blob([dataStr], { type: "application/json" });
@@ -341,73 +314,92 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         link.click();
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
-        showToast("پشتیبان‌گیری با موفقیت انجام شد ✅");
+        showToast("✅ پشتیبان‌گیری با موفقیت انجام شد.");
     };
     
-    const importData = (file: File) => {
-        showToast("قابلیت بازیابی آفلاین در نسخه ابری غیرفعال است. لطفاً با پشتیبانی تماس بگیرید ℹ️");
+    const importData = async (file: File) => {
+        if (!checkOnline()) { showToast("⚠️ شما آفلاین هستید."); return; }
+        
+        if (!window.confirm("⚠️ هشدار: این عملیات تمام اطلاعات فعلی پایگاه داده را پاک کرده و با فایل پشتیبان جایگزین می‌کند. آیا از انجام این کار اطمینان دارید؟")) {
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            try {
+                const json = e.target?.result as string;
+                const data = JSON.parse(json) as AppState;
+                
+                setIsLoading(true);
+                showToast("⏳ در حال بازیابی اطلاعات (لطفا صبر کنید)...");
+                
+                await api.clearAndRestoreData(data);
+                
+                await fetchData(); // Reload everything from DB
+                showToast("✅ بازیابی اطلاعات با موفقیت انجام شد.");
+            } catch (error) {
+                console.error("Import Error:", error);
+                showToast("❌ خطا در بازیابی فایل پشتیبان. فایل نامعتبر است.");
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        reader.readAsText(file);
     };
 
     // INVENTORY LOGIC
     const addProduct = (productData: Omit<Product, 'id' | 'batches'>, firstBatchData: Omit<ProductBatch, 'id'>) => {
-        if (!checkOnline()) return { success: false, message: 'آفلاین هستید ⚠️' };
+        if (!checkOnline()) return { success: false, message: '⚠️ شما آفلاین هستید. اتصال اینترنت را بررسی کنید.' };
         
         const trimmedName = productData.name.trim();
         if (state.products.some(p => p.name.trim().toLowerCase() === trimmedName.toLowerCase())) {
-             return { success: false, message: 'خطا: محصولی با این نام از قبل وجود دارد ❌' };
+             return { success: false, message: 'خطا: محصولی با این نام از قبل وجود دارد.' };
         }
 
         api.addProduct(productData, firstBatchData).then(newProduct => {
              addActivityLocal('inventory', `محصول جدید "${trimmedName}" را اضافه کرد`, state.currentUser!.username, newProduct.id, 'product');
              setState(prev => ({ ...prev, products: [...prev.products, newProduct] }));
-             showToast('محصول جدید ذخیره شد ✅');
+             showToast('✅ محصول جدید ذخیره شد.');
         }).catch(err => {
             console.error(err);
-            showToast('خطا در ذخیره محصول در پایگاه داده ❌');
+            showToast('❌ خطا در ذخیره محصول در پایگاه داده.');
         });
 
         return { success: true, message: 'در حال ذخیره سازی...' };
     };
     
     const updateProduct = (productData: Product) => {
-        if (!checkOnline()) return { success: false, message: 'آفلاین هستید ⚠️' };
-        
+         if (!checkOnline()) return { success: false, message: '⚠️ شما آفلاین هستید.' };
          api.updateProduct(productData).then(() => {
              addActivityLocal('inventory', `محصول "${productData.name}" را ویرایش کرد`, state.currentUser!.username, productData.id, 'product');
              setState(prev => ({ ...prev, products: prev.products.map(p => p.id === productData.id ? productData : p) }));
-             showToast('محصول ویرایش شد ✅');
-         }).catch(err => showToast('خطا در ویرایش محصول ❌'));
+             showToast('✅ محصول ویرایش شد.');
+         }).catch(err => showToast('❌ خطا در ویرایش محصول.'));
          
         return { success: true, message: 'در حال ویرایش...' };
     };
     
     const deleteProduct = (productId: string) => {
-        if (!checkOnline()) return;
-
-        // --- DATA INTEGRITY GUARD ---
-        // Check if product has history in sales or purchases
-        const hasSalesHistory = state.saleInvoices.some(inv => 
-            inv.items.some(item => item.type === 'product' && item.id === productId)
-        );
-        const hasPurchaseHistory = state.purchaseInvoices.some(inv => 
-            inv.items.some(item => item.productId === productId)
-        );
+        if (!checkOnline()) { showToast("⚠️ شما آفلاین هستید."); return; }
+        const product = state.products.find(p => p.id === productId);
+        
+        // GUARD: Check history
+        const hasSalesHistory = state.saleInvoices.some(inv => inv.items.some(item => item.id === productId && item.type === 'product'));
+        const hasPurchaseHistory = state.purchaseInvoices.some(inv => inv.items.some(item => item.productId === productId));
 
         if (hasSalesHistory || hasPurchaseHistory) {
-            showToast('⛔ خطا: این محصول دارای سابقه خرید یا فروش است و برای حفظ صحت حسابداری قابل حذف نیست. پیشنهاد می‌شود آن را ویرایش کرده یا نام آن را تغییر دهید.');
+            showToast(`❌ خطا: محصول "${product?.name}" دارای سابقه مالی است و قابل حذف نیست. (پیشنهاد: نام آن را تغییر دهید)`);
             return;
         }
-        // -----------------------------
 
-        const product = state.products.find(p => p.id === productId);
         api.deleteProduct(productId).then(() => {
             addActivityLocal('inventory', `محصول "${product?.name}" را حذف کرد`, state.currentUser!.username);
             setState(prev => ({ ...prev, products: prev.products.filter(p => p.id !== productId) }));
-            showToast('محصول حذف شد ✅');
-        }).catch(() => showToast('خطا در حذف محصول ❌'));
+            showToast('✅ محصول حذف شد.');
+        }).catch(() => showToast('❌ خطا در حذف محصول.'));
     };
 
-    // POS LOGIC
+    // POS LOGIC (State manipulation kept local until 'completeSale')
     const addToCart = (itemToAdd: Product | Service, type: 'product' | 'service') => {
         let success = false, message = '';
         setState(prev => {
@@ -417,14 +409,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 const updatedCart = [...prev.cart];
                 const existingItem = updatedCart[existingItemIndex];
                 if (type === 'product' && existingItem.quantity >= totalStock) {
-                    message = `حداکثر موجودی برای "${existingItem.name}" در سبد خرید است ⚠️`; return prev; 
+                    message = `حداکثر موجودی برای "${existingItem.name}" در سبد خرید است.`; return prev; 
                 }
                 updatedCart[existingItemIndex] = { ...existingItem, quantity: existingItem.quantity + 1 };
                 success = true;
                 return { ...prev, cart: updatedCart };
             } else {
                 if (type === 'product' && totalStock < 1) {
-                    message = `موجودی محصول "${itemToAdd.name}" تمام شده است ⚠️`; return prev; 
+                    message = `موجودی محصول "${itemToAdd.name}" تمام شده است.`; return prev; 
                 }
                 const productWithPurchasePrice = type === 'product' ? { ...itemToAdd, purchasePrice: 0 } : itemToAdd;
                 success = true;
@@ -445,7 +437,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                  const productInStock = prev.products.find(p => p.id === itemId);
                  const totalStock = productInStock?.batches.reduce((sum, b) => sum + b.stock, 0) || 0;
                  if (newQuantity > totalStock) {
-                    message = `موجودی محصول فقط ${totalStock} عدد است ⚠️`;
+                    message = `موجودی محصول فقط ${totalStock} عدد است.`;
                     cart[itemIndex] = { ...cart[itemIndex], quantity: totalStock };
                     return { ...prev, cart };
                  }
@@ -482,8 +474,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
     
     const completeSale = (cashier: string, customerId?: string): { success: boolean; invoice?: SaleInvoice; message: string } => {
-        if (!checkOnline()) return { success: false, message: 'آفلاین هستید. امکان ثبت فاکتور نیست ⚠️' };
-
+        if (!checkOnline()) return { success: false, message: '⚠️ شما آفلاین هستید. امکان ثبت فاکتور وجود ندارد.' };
+        
         const { cart, products, storeSettings, editingSaleInvoiceId, customers, saleInvoices } = state;
 
         if (cart.length === 0) return { success: false, message: "سبد خرید خالی است!" };
@@ -525,7 +517,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 stockUpdates.push({ batchId: batch.id, newStock: batch.stock });
             }
             
-            if (quantityToDeduct > 0) return { success: false, message: `موجودی محصول "${item.name}" کافی نیست ❌` };
+            if (quantityToDeduct > 0) return { success: false, message: `موجودی محصول "${item.name}" کافی نیست!` };
             
             saleItemsWithPurchasePrice.push({ ...item, purchasePrice: totalPurchaseValue / item.quantity });
         }
@@ -552,7 +544,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             if(customer) {
                 customerUpdate = {
                     id: customerId,
-                    newBalance: customer.balance + finalInvoice.totalAmount, 
+                    newBalance: customer.balance + finalInvoice.totalAmount, // For new, this is right. For edit, service handles revert.
                     transaction: { 
                         id: crypto.randomUUID(), 
                         customerId, 
@@ -570,20 +562,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             // --- EDIT MODE ---
             const oldInvoice = saleInvoices.find(inv => inv.id === editingSaleInvoiceId)!;
             
+            // 1. Calculate "Restores" (add back stock from old invoice items)
             const stockRestores: {productId: string, quantity: number}[] = [];
             oldInvoice.items.filter(i => i.type === 'product').forEach(item => {
                 stockRestores.push({ productId: item.id, quantity: item.quantity });
             });
             
-            // Recalculate deductions
-            const stockDeductions = stockUpdates.map(u => {
-                 const p = products.find((p: Product) => p.batches.some((b: ProductBatch) => b.id === u.batchId));
-                 const b = p?.batches.find((b: ProductBatch) => b.id === u.batchId);
-                 return { batchId: u.batchId, quantity: b ? b.stock - u.newStock : 0 };
-            });
+            // 2. Calculate "Deductions" (these are in `stockUpdates` calculated above)
+            const stockDeductions = stockUpdates.map(u => ({ batchId: u.batchId, quantity: (products.find(p => p.batches.some(b=>b.id===u.batchId))?.batches.find(b=>b.id===u.batchId)?.stock || 0) - u.newStock })); 
 
+            // 3. Customer Update Params
             let custUpdateParams;
             if (customerId && oldInvoice.customerId === customerId) {
+                const customer = customers.find(c => c.id === customerId)!;
                 custUpdateParams = {
                     id: customerId,
                     oldAmount: oldInvoice.totalAmount,
@@ -593,16 +584,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             } else if (customerId) {
                  custUpdateParams = {
                     id: customerId,
-                    oldAmount: 0,
+                    oldAmount: 0, 
                     newAmount: finalInvoice.totalAmount,
                     transactionDescription: `فاکتور فروش #${finalInvoice.id}`
                 };
             }
             
-            api.updateSale(invoiceId, finalInvoice, stockRestores, stockDeductions, custUpdateParams).then(() => {
+            api.updateSale(invoiceId, finalInvoice, stockRestores, stockUpdates.map(u => {
+                 const p = products.find(p => p.batches.some(b => b.id === u.batchId));
+                 const b = p?.batches.find(b => b.id === u.batchId);
+                 return { batchId: u.batchId, quantity: b ? b.stock - u.newStock : 0 };
+            }), custUpdateParams).then(() => {
                  addActivityLocal('sale', `فاکتور فروش #${finalInvoice.id} را ویرایش کرد`, cashier, finalInvoice.id, 'saleInvoice');
                  fetchData(); // Reload all data to be safe
-                 showToast("فاکتور ویرایش شد ✅");
+                 showToast("✅ فاکتور ویرایش شد.");
             });
 
             setState(prev => ({ ...prev, editingSaleInvoiceId: null, cart: [] }));
@@ -612,7 +607,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             api.createSale(finalInvoice, stockUpdates, customerUpdate).then(() => {
                  addActivityLocal('sale', `فاکتور فروش #${finalInvoice.id} به مبلغ ${formatCurrency(finalInvoice.totalAmount, storeSettings)} ثبت کرد`, cashier, finalInvoice.id, 'saleInvoice');
                  
-                 // Optimistic Update
+                 // Optimistic Update (Simplified)
                  setState(prev => {
                      const newSaleInvoices = [finalInvoice, ...prev.saleInvoices];
                      const newProducts = updatedProducts;
@@ -628,10 +623,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                          cart: []
                      }
                  });
-                 showToast("فاکتور با موفقیت ثبت شد ✅");
+                 showToast("✅ فاکتور با موفقیت ثبت شد.");
             }).catch(err => {
                 console.error(err);
-                showToast("خطا در ثبت فاکتور در سرور ❌");
+                showToast("❌ خطا در ثبت فاکتور در سرور.");
             });
         }
 
@@ -639,16 +634,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
 
     const beginEditSale = (invoiceId: string) => {
-        if (!checkOnline()) return { success: false, message: 'آفلاین هستید ⚠️' };
         const invoice = state.saleInvoices.find(i => i.id === invoiceId);
-        if (!invoice) return { success: false, message: "فاکتور یافت نشد ❌" };
+        if (!invoice) return { success: false, message: "فاکتور یافت نشد." };
         
         setState(prev => ({
             ...prev,
             editingSaleInvoiceId: invoiceId,
             cart: invoice.items.map(i => ({ ...i, type: i.type as 'product' | 'service' })),
         }));
-        return { success: true, message: "فاکتور جهت ویرایش بارگذاری شد ✅", customerId: invoice.customerId };
+        return { success: true, message: "فاکتور جهت ویرایش بارگذاری شد.", customerId: invoice.customerId };
     };
 
     const cancelEditSale = () => {
@@ -656,9 +650,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
 
     const addSaleReturn = (originalInvoiceId: string, returnItems: { id: string; type: 'product' | 'service'; quantity: number }[], cashier: string) => {
-        if (!checkOnline()) return { success: false, message: 'آفلاین هستید ⚠️' };
+        if (!checkOnline()) return { success: false, message: '⚠️ شما آفلاین هستید.' };
+        
         const originalInvoice = state.saleInvoices.find(i => i.id === originalInvoiceId);
-        if (!originalInvoice) return { success: false, message: "فاکتور اصلی یافت نشد ❌" };
+        if (!originalInvoice) return { success: false, message: "فاکتور اصلی یافت نشد." };
         
         // Calculate return amounts
         let returnSubtotal = 0;
@@ -698,34 +693,50 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         api.createSaleReturn(returnInvoice, stockRestores, customerRefund).then(() => {
             addActivityLocal('sale', `مرجوعی فاکتور #${originalInvoiceId} را ثبت کرد`, cashier, returnInvoice.id, 'saleInvoice');
             fetchData();
-            showToast("مرجوعی با موفقیت ثبت شد ✅");
-        }).catch(err => showToast("خطا در ثبت مرجوعی ❌"));
+            showToast("✅ مرجوعی با موفقیت ثبت شد.");
+        }).catch(err => showToast("❌ خطا در ثبت مرجوعی."));
 
         return { success: true, message: "در حال ثبت مرجوعی..." };
     };
 
     // PURCHASE ACTIONS
     const addPurchaseInvoice = (invoiceData: any) => {
-        if (!checkOnline()) return { success: false, message: 'آفلاین هستید ⚠️' };
+        if (!checkOnline()) return { success: false, message: '⚠️ شما آفلاین هستید.' };
+        
         const { products, suppliers, purchaseInvoices } = state;
         const supplier = suppliers.find(s => s.id === invoiceData.supplierId);
-        if(!supplier) return { success: false, message: "تامین کننده نامعتبر ❌" };
+        if(!supplier) return { success: false, message: "تأمین کننده نامعتبر" };
 
         // Generate a clean sequential ID (P1, P2...) instead of timestamp
         const invoiceId = generateNextId('P', purchaseInvoices.map(i => i.id));
 
+        // Currency Logic: Convert to Base if needed for Stock Valuation, but keep track of original
+        const isUSD = invoiceData.currency === 'USD';
+        const rate = isUSD ? Number(invoiceData.exchangeRate) : 1;
+
         const finalItems = invoiceData.items.map((item: any) => ({ 
             ...item, 
-            productName: products.find(p => p.id === item.productId)?.name || 'نامشخص' 
+            productName: products.find(p => p.id === item.productId)?.name || 'نامشخص',
+            // Store Base Price (AFN) in DB for accurate Cost of Goods Sold
+            purchasePrice: Math.round(item.purchasePrice * rate)
         }));
-        const totalAmount = invoiceData.items.reduce((total: number, item: any) => total + (item.purchasePrice * item.quantity), 0);
         
+        // Total Amount in Base Currency (AFN) for Supplier Balance
+        const totalAmount = finalItems.reduce((total: number, item: any) => total + (item.purchasePrice * item.quantity), 0);
+        
+        // Auto-fill invoice number with system ID if empty
+        const finalInvoiceNumber = invoiceData.invoiceNumber ? invoiceData.invoiceNumber : invoiceId;
+
+        // The invoice object stores the metadata about currency
         const invoice: PurchaseInvoice = {
              ...invoiceData, 
              type: 'purchase', 
-             id: invoiceId, 
+             id: invoiceId,
+             invoiceNumber: finalInvoiceNumber, // Use auto-filled number
              items: finalItems, 
-             totalAmount: Math.round(totalAmount) 
+             totalAmount: Math.round(totalAmount),
+             currency: invoiceData.currency,
+             exchangeRate: rate
         };
 
         // Prepare Batches
@@ -739,7 +750,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 product_id: item.productId,
                 lot_number: item.lotNumber,
                 stock: item.quantity,
-                purchase_price: item.purchasePrice,
+                purchase_price: item.purchasePrice, // Stored in AFN
                 purchase_date: invoice.timestamp,
                 expiry_date: item.expiryDate
             });
@@ -750,15 +761,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
         const supplierUpdate = {
             id: supplier.id,
-            newBalance: supplier.balance + invoice.totalAmount,
+            newBalance: supplier.balance + invoice.totalAmount, // Balance tracks total liability in AFN
             transaction: {
                  id: crypto.randomUUID(), 
                  supplierId: supplier.id, 
                  type: 'purchase' as const, 
-                 amount: invoice.totalAmount, 
+                 amount: isUSD ? (invoice.totalAmount / rate) : invoice.totalAmount, // Transaction tracks amount in original currency
                  date: invoice.timestamp, 
-                 description: `فاکتور خرید #${invoice.invoiceNumber}`, 
-                 invoiceId: invoice.id 
+                 description: `فاکتور خرید #${invoice.invoiceNumber} (${isUSD ? `مبلغ ارزی: ${Math.round(invoice.totalAmount/rate).toLocaleString()}$` : ''})`, 
+                 invoiceId: invoice.id,
+                 currency: invoiceData.currency // Track currency explicitly
             }
         };
 
@@ -771,19 +783,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 suppliers: prev.suppliers.map(s => s.id === supplier.id ? {...s, balance: s.balance + invoice.totalAmount} : s),
                 supplierTransactions: [supplierUpdate.transaction, ...prev.supplierTransactions]
             }));
-            showToast("فاکتور خرید ثبت شد ✅");
+            showToast("✅ فاکتور خرید ثبت شد.");
         }).catch(err => {
             console.error(err);
-            showToast("خطا در ثبت فاکتور خرید ❌");
+            showToast("❌ خطا در ثبت فاکتور خرید.");
         });
 
         return { success: true, message: "در حال ثبت..." };
     };
 
     const beginEditPurchase = (invoiceId: string) => {
-        if (!checkOnline()) return { success: false, message: 'آفلاین هستید ⚠️' };
         setState(prev => ({ ...prev, editingPurchaseInvoiceId: invoiceId }));
-        return { success: true, message: "حالت ویرایش خرید فعال شد ✅" };
+        return { success: true, message: "حالت ویرایش خرید فعال شد." };
     };
     
     const cancelEditPurchase = () => {
@@ -791,7 +802,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
 
     const updatePurchaseInvoice = (invoiceData: any) => {
-        if (!checkOnline()) return { success: false, message: 'آفلاین هستید ⚠️' };
+        if (!checkOnline()) return { success: false, message: '⚠️ شما آفلاین هستید.' };
         const invoiceId = state.editingPurchaseInvoiceId!;
         const oldInvoice = state.purchaseInvoices.find(i => i.id === invoiceId)!;
         
@@ -815,7 +826,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         };
 
         api.updatePurchase(invoiceId, newInvoice, [], supplierUpdate).then(() => {
-            showToast("فاکتور خرید ویرایش شد ✅");
+            showToast("✅ فاکتور خرید ویرایش شد. (توجه: موجودی کالاها را در صورت نیاز دستی اصلاح کنید)");
             fetchData();
             setState(prev => ({ ...prev, editingPurchaseInvoiceId: null }));
         });
@@ -824,9 +835,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
 
     const addPurchaseReturn = (originalInvoiceId: string, returnItems: { productId: string; quantity: number }[]) => {
-        if (!checkOnline()) return { success: false, message: 'آفلاین هستید ⚠️' };
+        if (!checkOnline()) return { success: false, message: '⚠️ شما آفلاین هستید.' };
         const originalInvoice = state.purchaseInvoices.find(i => i.id === originalInvoiceId);
-        if (!originalInvoice) return { success: false, message: "فاکتور یافت نشد ❌" };
+        if (!originalInvoice) return { success: false, message: "فاکتور یافت نشد" };
 
         // Calculate return totals
         let returnTotal = 0;
@@ -860,7 +871,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         api.createPurchaseReturn(returnInvoice, stockDeductions, supplierRefund).then(() => {
             addActivityLocal('purchase', `مرجوعی خرید ثبت کرد`, state.currentUser!.username, returnInvoice.id, 'purchaseInvoice');
             fetchData();
-            showToast("مرجوعی خرید ثبت شد ✅");
+            showToast("✅ مرجوعی خرید ثبت شد.");
         });
 
         return { success: true, message: "در حال ثبت..." };
@@ -868,52 +879,47 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     // SETTINGS
     const updateSettings = (newSettings: StoreSettings) => {
-        if (!checkOnline()) return;
+        if (!checkOnline()) { showToast('⚠️ شما آفلاین هستید.'); return; }
         api.updateSettings(newSettings).then(() => {
             setState(prev => ({ ...prev, storeSettings: newSettings }));
-            showToast("تنظیمات ذخیره شد ✅");
+            showToast("✅ تنظیمات ذخیره شد.");
         });
     };
 
     // SERVICES
     const addService = (service: any) => {
-        if (!checkOnline()) return;
-        api.addService(service).then(newS => {
-            setState(prev => ({ ...prev, services: [...prev.services, newS] }));
-            showToast("خدمت اضافه شد ✅");
-        });
+        if (!checkOnline()) { showToast('⚠️ شما آفلاین هستید.'); return; }
+        api.addService(service).then(newS => setState(prev => ({ ...prev, services: [...prev.services, newS] })));
     };
     const deleteService = (id: string) => {
-        if (!checkOnline()) return;
-        api.deleteService(id).then(() => {
-            setState(prev => ({ ...prev, services: prev.services.filter(s => s.id !== id) }));
-            showToast("خدمت حذف شد ✅");
-        });
+        if (!checkOnline()) { showToast('⚠️ شما آفلاین هستید.'); return; }
+        api.deleteService(id).then(() => setState(prev => ({ ...prev, services: prev.services.filter(s => s.id !== id) })));
     };
 
     // ACCOUNTING
-    const addSupplier = (s: any) => {
-        if (!checkOnline()) return;
-        api.addSupplier(s).then(newS => { setState(prev => ({...prev, suppliers: [...prev.suppliers, newS]})); showToast("تامین کننده افزوده شد ✅"); });
-    };
-    const addCustomer = (c: any) => {
-        if (!checkOnline()) return;
-        api.addCustomer(c).then(newC => { setState(prev => ({...prev, customers: [...prev.customers, newC]})); showToast("مشتری افزوده شد ✅"); });
-    };
-    const addEmployee = (e: any) => {
-        if (!checkOnline()) return;
-        api.addEmployee(e).then(newE => { setState(prev => ({...prev, employees: [...prev.employees, newE]})); showToast("کارمند افزوده شد ✅"); });
-    };
-    const addExpense = (e: any) => {
-        if (!checkOnline()) return;
-        api.addExpense(e).then(newE => { setState(prev => ({...prev, expenses: [...prev.expenses, newE]})); showToast("هزینه ثبت شد ✅"); });
-    };
+    const addSupplier = (s: any) => api.addSupplier(s).then(newS => { setState(prev => ({...prev, suppliers: [...prev.suppliers, newS]})); showToast("تامین کننده افزوده شد"); });
+    const addCustomer = (c: any) => api.addCustomer(c).then(newC => { setState(prev => ({...prev, customers: [...prev.customers, newC]})); showToast("مشتری افزوده شد"); });
+    const addEmployee = (e: any) => api.addEmployee(e).then(newE => { setState(prev => ({...prev, employees: [...prev.employees, newE]})); showToast("کارمند افزوده شد"); });
+    const addExpense = (e: any) => api.addExpense(e).then(newE => { setState(prev => ({...prev, expenses: [...prev.expenses, newE]})); showToast("هزینه ثبت شد"); });
 
-    const addSupplierPayment = (supplierId: string, amount: number, description: string) => {
-        if (!checkOnline()) return null;
-        const transaction = { id: crypto.randomUUID(), supplierId, type: 'payment' as const, amount, date: new Date().toISOString(), description };
+    const addSupplierPayment = (supplierId: string, amount: number, description: string, currency: 'AFN' | 'USD' = 'AFN', exchangeRate: number = 1) => {
+        if (!checkOnline()) { showToast('⚠️ شما آفلاین هستید.'); return {} as any; }
+        
+        // Transaction stores the exact currency paid
+        const transaction: SupplierTransaction = { 
+            id: crypto.randomUUID(), 
+            supplierId, 
+            type: 'payment', 
+            amount, 
+            date: new Date().toISOString(), 
+            description: `${description} (${currency === 'USD' ? `${amount.toLocaleString()}$` : ''})`,
+            currency: currency
+        };
+        
         const supplier = state.suppliers.find(s => s.id === supplierId)!;
-        const newBalance = supplier.balance - amount;
+        // Balance update always happens in AFN to keep total liability single-threaded
+        const paymentValueInAFN = currency === 'USD' ? amount * exchangeRate : amount;
+        const newBalance = supplier.balance - paymentValueInAFN;
         
         api.processPayment('supplier', supplierId, newBalance, transaction).then(() => {
             setState(prev => ({
@@ -921,13 +927,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 suppliers: prev.suppliers.map(s => s.id === supplierId ? {...s, balance: newBalance} : s),
                 supplierTransactions: [transaction, ...prev.supplierTransactions]
             }));
-            showToast("پرداخت ثبت شد ✅");
         });
         return transaction;
     };
 
     const addCustomerPayment = (customerId: string, amount: number, description: string) => {
-        if (!checkOnline()) return null;
+        if (!checkOnline()) { showToast('⚠️ شما آفلاین هستید.'); return {} as any; }
         const transaction = { id: crypto.randomUUID(), customerId, type: 'payment' as const, amount, date: new Date().toISOString(), description };
         const customer = state.customers.find(c => c.id === customerId)!;
         const newBalance = customer.balance - amount;
@@ -938,13 +943,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 customers: prev.customers.map(c => c.id === customerId ? {...c, balance: newBalance} : c),
                 customerTransactions: [transaction, ...prev.customerTransactions]
             }));
-            showToast("دریافت ثبت شد ✅");
         });
         return transaction;
     };
 
     const addEmployeeAdvance = (employeeId: string, amount: number) => {
-        if (!checkOnline()) return;
+        if (!checkOnline()) { showToast('⚠️ شما آفلاین هستید.'); return; }
         const transaction = { id: crypto.randomUUID(), employeeId, type: 'advance' as const, amount, date: new Date().toISOString(), description: 'مساعده' };
         const employee = state.employees.find(e => e.id === employeeId)!;
         const newBalance = employee.balance + amount;
@@ -955,13 +959,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 employees: prev.employees.map(e => e.id === employeeId ? {...e, balance: newBalance} : e),
                 payrollTransactions: [transaction, ...prev.payrollTransactions]
             }));
-            showToast("مساعده ثبت شد ✅");
         });
     };
 
     const processAndPaySalaries = () => {
-        if (!checkOnline()) return { success: false, message: 'آفلاین هستید ⚠️' };
-        
+        if (!checkOnline()) return { success: false, message: '⚠️ شما آفلاین هستید.' };
         const { employees, storeSettings } = state;
         const newTransactions: PayrollTransaction[] = [];
         let totalPaid = 0;
@@ -988,7 +990,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                  payrollTransactions: [...newTransactions, ...prev.payrollTransactions],
                  expenses: [expense, ...prev.expenses]
              }));
-             showToast("حقوق‌ها پرداخت شد ✅");
+             showToast("✅ حقوق‌ها پرداخت شد.");
         });
 
         return { success: true, message: 'در حال پردازش...' };

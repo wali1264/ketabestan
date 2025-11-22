@@ -1,10 +1,9 @@
-
 import { supabase } from '../utils/supabaseClient';
 import type { 
     Product, ProductBatch, SaleInvoice, PurchaseInvoice, Supplier, Customer, 
     Employee, Expense, Service, Role, User, StoreSettings, ActivityLog, 
     CustomerTransaction, SupplierTransaction, PayrollTransaction, InvoiceItem,
-    PurchaseInvoiceItem, SaleInvoice as SaleInvoiceType
+    PurchaseInvoiceItem, SaleInvoice as SaleInvoiceType, AppState
 } from '../types';
 
 // --- Helper Helpers for Data Mapping (Database Snake_case to App CamelCase) ---
@@ -79,6 +78,8 @@ const mapPurchaseInvoice = (data: any): PurchaseInvoice => ({
     invoiceNumber: data.invoice_number || '',
     totalAmount: Number(data.total_amount),
     timestamp: data.timestamp,
+    currency: data.currency || 'AFN',
+    exchangeRate: Number(data.exchange_rate || 1),
     items: data.purchase_invoice_items?.map((item: any) => ({
         productId: item.product_id,
         productName: item.product_name,
@@ -271,7 +272,7 @@ export const api = {
         ]);
         return {
             customerTransactions: cust.data?.map((t:any) => ({...t, customerId: t.customer_id, invoiceId: t.invoice_id, amount: Number(t.amount)})) || [],
-            supplierTransactions: supp.data?.map((t:any) => ({...t, supplierId: t.supplier_id, invoiceId: t.invoice_id, amount: Number(t.amount)})) || [],
+            supplierTransactions: supp.data?.map((t:any) => ({...t, supplierId: t.supplier_id, invoiceId: t.invoice_id, amount: Number(t.amount), currency: t.currency || 'AFN'})) || [],
             payrollTransactions: pay.data?.map((t:any) => ({...t, employeeId: t.employee_id, amount: Number(t.amount)})) || []
         };
     },
@@ -480,10 +481,13 @@ export const api = {
             supplier_id: invoice.supplierId,
             invoice_number: invoice.invoiceNumber,
             total_amount: invoice.totalAmount,
-            timestamp: invoice.timestamp
+            timestamp: invoice.timestamp,
+            currency: invoice.currency,
+            exchange_rate: invoice.exchangeRate
         });
         if (iError) throw iError;
 
+        // We store items in Base Currency (calculated in AppContext before calling this)
         const itemsData = invoice.items.map(item => ({
             invoice_id: invoice.id,
             product_id: item.productId,
@@ -502,7 +506,7 @@ export const api = {
                 product_id: b.product_id,
                 lot_number: b.lotNumber,
                 stock: b.stock,
-                purchase_price: b.purchasePrice,
+                purchase_price: b.purchasePrice, // Already converted to base currency
                 purchase_date: b.purchaseDate,
                 expiry_date: b.expiryDate
              }));
@@ -510,15 +514,18 @@ export const api = {
         }
 
         await supabase.from('suppliers').update({ balance: supplierUpdate.newBalance }).eq('id', supplierUpdate.id);
-        await supabase.from('supplier_transactions').insert({
+        
+        const txData: any = {
             id: supplierUpdate.transaction.id,
             supplier_id: supplierUpdate.transaction.supplierId,
             type: supplierUpdate.transaction.type,
             amount: supplierUpdate.transaction.amount,
             date: supplierUpdate.transaction.date,
             description: supplierUpdate.transaction.description,
-            invoice_id: supplierUpdate.transaction.invoiceId
-        });
+            invoice_id: supplierUpdate.transaction.invoiceId,
+            currency: supplierUpdate.transaction.currency // Store currency
+        };
+        await supabase.from('supplier_transactions').insert(txData);
     },
 
     updatePurchase: async (
@@ -532,7 +539,9 @@ export const api = {
              supplier_id: newInvoiceData.supplierId,
              invoice_number: newInvoiceData.invoiceNumber,
              total_amount: newInvoiceData.totalAmount,
-             timestamp: newInvoiceData.timestamp
+             timestamp: newInvoiceData.timestamp,
+             currency: newInvoiceData.currency,
+             exchange_rate: newInvoiceData.exchangeRate
         }).eq('id', invoiceId);
 
         // 2. Re-create items
@@ -549,7 +558,6 @@ export const api = {
         await supabase.from('purchase_invoice_items').insert(itemsData);
 
         // 3. Add NEW batches (For edit, we assume we add new ones if not exist, existing ones are manual)
-        // This is a simplification for online safety.
         if (newBatches.length > 0) {
              const batchesData = newBatches.map(b => ({
                 id: b.id,
@@ -567,8 +575,6 @@ export const api = {
         if (supplierUpdate) {
             const { data: supplier } = await supabase.from('suppliers').select('balance').eq('id', supplierUpdate.id).single();
             if (supplier) {
-                // Supplier Balance = Debt we owe them.
-                // Revert: Balance - OldAmount. Apply: + NewAmount.
                 const newBalance = supplier.balance - supplierUpdate.oldAmount + supplierUpdate.newAmount;
                 await supabase.from('suppliers').update({ balance: newBalance }).eq('id', supplierUpdate.id);
                 
@@ -690,6 +696,110 @@ export const api = {
             amount: expense.amount,
             date: expense.date
         });
+    },
+
+    // --- DANGEROUS: Wipe and Restore Database ---
+    clearAndRestoreData: async (data: AppState) => {
+        // 1. Delete everything in reverse dependency order
+        const tablesToDelete = [
+            'sale_invoice_items', 'purchase_invoice_items', 'product_batches',
+            'customer_transactions', 'supplier_transactions', 'payroll_transactions', 'activity_logs',
+            'sale_invoices', 'purchase_invoices',
+            'products', 'customers', 'suppliers', 'employees', 'services', 'expenses',
+            'store_settings'
+        ];
+
+        for (const table of tablesToDelete) {
+            const { error } = await supabase.from(table).delete().neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all (neq dummy)
+            if (error) console.error(`Error clearing table ${table}:`, error);
+        }
+
+        // 2. Restore Data in correct order
+        
+        // Settings
+        if (data.storeSettings) {
+            // We update ID 1 rather than insert, as settings is a singleton
+            await api.updateSettings(data.storeSettings); 
+        }
+
+        // Base Entities
+        if (data.services.length > 0) {
+            await supabase.from('services').insert(data.services.map(s => ({ id: s.id, name: s.name, price: s.price })));
+        }
+        if (data.customers.length > 0) {
+            await supabase.from('customers').insert(data.customers.map(c => ({ id: c.id, name: c.name, phone: c.phone, credit_limit: c.creditLimit, balance: c.balance })));
+        }
+        if (data.suppliers.length > 0) {
+            await supabase.from('suppliers').insert(data.suppliers.map(s => ({ id: s.id, name: s.name, contact_person: s.contactPerson, phone: s.phone, address: s.address, balance: s.balance })));
+        }
+        if (data.employees.length > 0) {
+            await supabase.from('employees').insert(data.employees.map(e => ({ id: e.id, name: e.name, position: e.position, monthly_salary: e.monthlySalary, balance: e.balance })));
+        }
+        if (data.expenses.length > 0) {
+            await supabase.from('expenses').insert(data.expenses.map(e => ({ id: e.id, category: e.category, description: e.description, amount: e.amount, date: e.date })));
+        }
+
+        // Products & Batches
+        if (data.products.length > 0) {
+            const productsData = data.products.map(p => ({
+                id: p.id, name: p.name, sale_price: p.salePrice, barcode: p.barcode, manufacturer: p.manufacturer, items_per_package: p.itemsPerPackage
+            }));
+            await supabase.from('products').insert(productsData);
+
+            const batchesData = data.products.flatMap(p => p.batches.map(b => ({
+                id: b.id, product_id: p.id, lot_number: b.lotNumber, stock: b.stock, purchase_price: b.purchasePrice, purchase_date: b.purchaseDate, expiry_date: b.expiryDate
+            })));
+            if (batchesData.length > 0) await supabase.from('product_batches').insert(batchesData);
+        }
+
+        // Invoices
+        if (data.saleInvoices.length > 0) {
+            const salesData = data.saleInvoices.map(i => ({
+                id: i.id, type: i.type, original_invoice_id: i.originalInvoiceId, subtotal: i.subtotal, total_discount: i.totalDiscount, total_amount: i.totalAmount, timestamp: i.timestamp, cashier: i.cashier, customer_id: i.customerId
+            }));
+            await supabase.from('sale_invoices').insert(salesData);
+
+            const saleItemsData = data.saleInvoices.flatMap(inv => inv.items.map(item => ({
+                invoice_id: inv.id, item_id: item.id, type: item.type, name: item.name, quantity: item.quantity, 
+                price: (item.type === 'product' ? (item as any).salePrice : (item as any).price),
+                final_price: (item.type === 'product' && (item as any).finalPrice !== undefined) ? (item as any).finalPrice : (item as any).salePrice
+            })));
+            if (saleItemsData.length > 0) await supabase.from('sale_invoice_items').insert(saleItemsData);
+        }
+
+        if (data.purchaseInvoices.length > 0) {
+            const purchasesData = data.purchaseInvoices.map(i => ({
+                id: i.id, type: i.type, original_invoice_id: i.originalInvoiceId, supplier_id: i.supplierId, invoice_number: i.invoiceNumber, total_amount: i.totalAmount, timestamp: i.timestamp, currency: i.currency, exchange_rate: i.exchangeRate
+            }));
+            await supabase.from('purchase_invoices').insert(purchasesData);
+
+            const purchaseItemsData = data.purchaseInvoices.flatMap(inv => inv.items.map(item => ({
+                invoice_id: inv.id, product_id: item.productId, product_name: item.productName, quantity: item.quantity, purchase_price: item.purchasePrice, lot_number: item.lotNumber, expiry_date: item.expiryDate
+            })));
+            if (purchaseItemsData.length > 0) await supabase.from('purchase_invoice_items').insert(purchaseItemsData);
+        }
+
+        // Transactions & Activity
+        if (data.customerTransactions.length > 0) {
+            await supabase.from('customer_transactions').insert(data.customerTransactions.map(t => ({
+                id: t.id, customer_id: t.customerId, type: t.type, amount: t.amount, date: t.date, description: t.description, invoice_id: t.invoiceId
+            })));
+        }
+        if (data.supplierTransactions.length > 0) {
+            await supabase.from('supplier_transactions').insert(data.supplierTransactions.map(t => ({
+                id: t.id, supplier_id: t.supplierId, type: t.type, amount: t.amount, date: t.date, description: t.description, invoice_id: t.invoiceId, currency: t.currency
+            })));
+        }
+        if (data.payrollTransactions.length > 0) {
+            await supabase.from('payroll_transactions').insert(data.payrollTransactions.map(t => ({
+                id: t.id, employee_id: t.employeeId, type: t.type, amount: t.amount, date: t.date, description: t.description
+            })));
+        }
+        if (data.activities && data.activities.length > 0) {
+            await supabase.from('activity_logs').insert(data.activities.map(a => ({
+                id: a.id, type: a.type, description: a.description, timestamp: a.timestamp, user: a.user, ref_id: a.refId, ref_type: a.refType
+            })));
+        }
     }
 
 };

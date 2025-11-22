@@ -18,7 +18,7 @@ const ReportPrintPreviewModal: React.FC<ReportPrintPreviewModalProps> = ({ title
     const formattedDateRange = `${new Date(dateRange.start).toLocaleDateString('fa-IR')} - ${new Date(dateRange.end).toLocaleDateString('fa-IR')}`;
 
     return (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[80] p-4">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
             <div className="bg-white p-6 rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
                 <div className="flex justify-between items-center mb-4 no-print">
                     <h2 className="text-lg font-bold text-slate-500">پیش‌نمایش چاپ</h2>

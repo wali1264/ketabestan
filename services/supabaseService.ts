@@ -1,5 +1,3 @@
-
-
 import { supabase } from '../utils/supabaseClient';
 import type { 
     Product, ProductBatch, SaleInvoice, PurchaseInvoice, Supplier, Customer, 
@@ -60,7 +58,6 @@ const mapSaleInvoice = (data: any): SaleInvoice => ({
     timestamp: data.timestamp,
     cashier: data.cashier,
     customerId: data.customer_id,
-    manualCustomerName: data.manual_customer_name,
     items: data.sale_invoice_items?.map((item: any) => ({
         id: item.item_id, // This ID refers to Product or Service ID
         type: item.type,
@@ -323,8 +320,7 @@ export const api = {
             total_amount: invoice.totalAmount,
             timestamp: invoice.timestamp,
             cashier: invoice.cashier,
-            customer_id: invoice.customerId,
-            manual_customer_name: invoice.manualCustomerName
+            customer_id: invoice.customerId
         });
         if (iError) throw iError;
 
@@ -392,8 +388,7 @@ export const api = {
             subtotal: newInvoiceData.subtotal,
             total_discount: newInvoiceData.totalDiscount,
             total_amount: newInvoiceData.totalAmount,
-            customer_id: newInvoiceData.customerId,
-            manual_customer_name: newInvoiceData.manualCustomerName
+            customer_id: newInvoiceData.customerId
         }).eq('id', invoiceId);
         if (headerError) throw headerError;
 
@@ -760,7 +755,7 @@ export const api = {
         // Invoices
         if (data.saleInvoices.length > 0) {
             const salesData = data.saleInvoices.map(i => ({
-                id: i.id, type: i.type, original_invoice_id: i.originalInvoiceId, subtotal: i.subtotal, total_discount: i.totalDiscount, total_amount: i.totalAmount, timestamp: i.timestamp, cashier: i.cashier, customer_id: i.customerId, manual_customer_name: i.manualCustomerName
+                id: i.id, type: i.type, original_invoice_id: i.originalInvoiceId, subtotal: i.subtotal, total_discount: i.totalDiscount, total_amount: i.totalAmount, timestamp: i.timestamp, cashier: i.cashier, customer_id: i.customerId
             }));
             await supabase.from('sale_invoices').insert(salesData);
 

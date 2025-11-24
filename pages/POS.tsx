@@ -1,5 +1,4 @@
 
-
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import type { InvoiceItem, Product, SaleInvoice, SpeechRecognition, SpeechRecognitionEvent, SpeechRecognitionErrorEvent, Customer, SalesMemoImage, Service, CartItem } from '../types';
 import { useAppContext } from '../AppContext';
@@ -145,8 +144,7 @@ const CartSide: React.FC<any> = ({
     editingSaleInvoiceId, handleCancelEdit, updateQuantity, removeFromCart, editingPriceItemId,
     setEditingPriceItemId, updateCartItemFinalPrice, hasPermission, selectedCustomerId,
     setSelectedCustomerId, customers, totalAmount, completeSale, setInvoiceDateRange,
-    handlePrintInvoice, handleEditInvoice, storeSettings, setMobileView, addToCart, handleOpenReturnModal,
-    manualCustomerName, setManualCustomerName, setIsNameModalOpen
+    handlePrintInvoice, handleEditInvoice, storeSettings, setMobileView, addToCart, handleOpenReturnModal
 }) => {
     
     // Logic for mobile footer removed from here and moved to parent POS component for unified handling
@@ -166,10 +164,6 @@ const CartSide: React.FC<any> = ({
                  <button onClick={() => setActiveTab('services')} className={`py-2 px-3 md:px-6 font-bold text-sm md:text-lg whitespace-nowrap transition-colors relative ${activeTab === 'services' ? 'text-blue-600' : 'text-slate-500 hover:text-blue-600'}`}>
                     خدمات
                     {activeTab === 'services' && <div className="absolute bottom-0 left-0 w-full h-1 bg-blue-600 rounded-t-full"></div>}
-                </button>
-                <button onClick={() => setIsNameModalOpen(true)} className={`py-2 px-3 md:px-6 font-bold text-sm md:text-lg whitespace-nowrap transition-colors relative flex items-center gap-1 text-slate-500 hover:text-blue-600 ${manualCustomerName && !selectedCustomerId ? 'text-blue-600' : ''}`}>
-                    <EditIcon className="w-4 h-4" />
-                    {manualCustomerName && !selectedCustomerId ? manualCustomerName : 'نام مشتری'}
                 </button>
             </div>
              <button onClick={() => setIsGalleryOpen(true)} className="flex-shrink-0 ml-1 p-2 rounded-full text-gray-500 hover:text-blue-600 hover:bg-gray-100 transition-colors" title="گالری">
@@ -382,8 +376,6 @@ const POS: React.FC = () => {
     const [mobileView, setMobileView] = useState<'products' | 'cart'>('products');
     const [invoiceToPrint, setInvoiceToPrint] = useState<SaleInvoice | null>(null);
     const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
-    const [manualCustomerName, setManualCustomerName] = useState<string>('');
-    const [isNameModalOpen, setIsNameModalOpen] = useState(false);
     const [memoImages, setMemoImages] = useState<SalesMemoImage[]>([]);
     const [isGalleryOpen, setIsGalleryOpen] = useState(false);
     const memoFileInputRef = useRef<HTMLInputElement>(null);
@@ -570,8 +562,7 @@ const POS: React.FC = () => {
             showToast("خطا: کاربر فعلی مشخص نیست.");
             return;
         }
-        // Pass manualCustomerName only if no registered customer is selected
-        const result = context.completeSale(currentUser.username, selectedCustomerId || undefined, selectedCustomerId ? undefined : manualCustomerName);
+        const result = context.completeSale(currentUser.username, selectedCustomerId || undefined);
         showToast(result.message);
 
         if (result.success && result.invoice) {
@@ -580,7 +571,6 @@ const POS: React.FC = () => {
             }
             setActiveTab('invoices');
             setSelectedCustomerId('');
-            setManualCustomerName('');
             setMobileView('cart');
         }
     }
@@ -673,24 +663,6 @@ const POS: React.FC = () => {
             {returnModalInvoice && (
                 <ReturnModal invoice={returnModalInvoice} onClose={() => setReturnModalInvoice(null)} onSubmit={handleReturnSubmit} />
             )}
-            {isNameModalOpen && (
-                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[120] p-4 modal-animate">
-                    <div className="bg-white p-6 rounded-xl shadow-2xl w-full max-w-sm">
-                        <h3 className="text-lg font-bold mb-4 text-slate-800">نام مشتری (در فاکتور)</h3>
-                        <input 
-                            type="text" 
-                            value={manualCustomerName} 
-                            onChange={(e) => setManualCustomerName(e.target.value)} 
-                            placeholder="نام مشتری را وارد کنید..." 
-                            className="w-full p-3 border rounded-lg form-input mb-4"
-                            autoFocus
-                        />
-                        <div className="flex justify-end gap-2">
-                            <button onClick={() => setIsNameModalOpen(false)} className="px-4 py-2 bg-slate-200 rounded-lg">تایید</button>
-                        </div>
-                    </div>
-                </div>
-            )}
             
             <div className="md:flex h-full bg-transparent">
                 {/* Product View */}
@@ -719,8 +691,7 @@ const POS: React.FC = () => {
                          removeFromCart: contextRemoveFromCart, editingPriceItemId,
                          setEditingPriceItemId, updateCartItemFinalPrice: contextUpdateCartItemFinalPrice, hasPermission: context.hasPermission, 
                          selectedCustomerId, setSelectedCustomerId, customers, totalAmount, completeSale, setInvoiceDateRange,
-                         handlePrintInvoice, handleEditInvoice, storeSettings, setMobileView, addToCart, handleOpenReturnModal,
-                         manualCustomerName, setManualCustomerName, setIsNameModalOpen
+                         handlePrintInvoice, handleEditInvoice, storeSettings, setMobileView, addToCart, handleOpenReturnModal
                        }}
                     />
                 </div>

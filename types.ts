@@ -49,7 +49,6 @@ export interface SaleInvoice {
   timestamp: string;
   cashier: string;
   customerId?: string; // Optional: for credit sales
-  manualCustomerName?: string; // Optional: for walk-in customers
 }
 
 export interface PurchaseInvoiceItem {

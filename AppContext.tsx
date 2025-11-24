@@ -1,5 +1,3 @@
-
-
 import React, { createContext, useContext, ReactNode, useState, useEffect } from 'react';
 import type {
     Product, ProductBatch, SaleInvoice, PurchaseInvoice, PurchaseInvoiceItem, InvoiceItem,
@@ -42,7 +40,7 @@ interface AppContextType extends AppState {
     updateCartItemQuantity: (itemId: string, itemType: 'product' | 'service', newQuantity: number) => { success: boolean; message: string };
     updateCartItemFinalPrice: (itemId: string, itemType: 'product' | 'service', finalPrice: number) => void;
     removeFromCart: (itemId: string, itemType: 'product' | 'service') => void;
-    completeSale: (cashier: string, customerId?: string, manualCustomerName?: string) => { success: boolean; invoice?: SaleInvoice; message: string };
+    completeSale: (cashier: string, customerId?: string) => { success: boolean; invoice?: SaleInvoice; message: string };
     beginEditSale: (invoiceId: string) => { success: boolean; message: string; customerId?: string; };
     cancelEditSale: () => void;
     addSaleReturn: (originalInvoiceId: string, returnItems: { id: string; type: 'product' | 'service'; quantity: number }[], cashier: string) => { success: boolean, message: string };
@@ -475,7 +473,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         return { final: item.price, original: item.price };
     };
     
-    const completeSale = (cashier: string, customerId?: string, manualCustomerName?: string): { success: boolean; invoice?: SaleInvoice; message: string } => {
+    const completeSale = (cashier: string, customerId?: string): { success: boolean; invoice?: SaleInvoice; message: string } => {
         if (!checkOnline()) return { success: false, message: '⚠️ شما آفلاین هستید. امکان ثبت فاکتور وجود ندارد.' };
         
         const { cart, products, storeSettings, editingSaleInvoiceId, customers, saleInvoices } = state;
@@ -536,8 +534,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             totalDiscount: Math.round(newTotalDiscount), 
             timestamp: editingSaleInvoiceId ? saleInvoices.find(i=>i.id===invoiceId)!.timestamp : new Date().toISOString(), 
             cashier, 
-            customerId,
-            manualCustomerName // Add this line
+            customerId, 
         };
 
         // Customer Update

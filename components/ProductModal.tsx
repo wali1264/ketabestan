@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import type { Product, ProductBatch, SpeechRecognition, SpeechRecognitionEvent, SpeechRecognitionErrorEvent } from '../types';
 import { XIcon, ChevronDownIcon, MicIcon, WarningIcon } from './icons';
@@ -227,8 +228,20 @@ const ProductModal: React.FC<ProductModalProps> = ({ product, onClose, onSave })
         const { name, value } = e.target;
         
         let processedValue = value;
-         if (['purchasePrice', 'salePrice', 'itemsPerPackage', 'lotNumber'].includes(name)) {
+        
+        // STRICT INTEGERS: itemsPerPackage, lotNumber
+        if (['itemsPerPackage', 'lotNumber'].includes(name)) {
             processedValue = value.replace(/[^0-9]/g, '');
+        }
+        // DECIMALS ALLOWED: purchasePrice, salePrice
+        else if (['purchasePrice', 'salePrice'].includes(name)) {
+            // Allow digits and dot, remove others
+            processedValue = value.replace(/[^0-9.]/g, '');
+            
+            // Prevent more than one dot
+            if ((processedValue.match(/\./g) || []).length > 1) {
+                return; // Ignore input if it attempts to add a second dot
+            }
         }
 
         setFormData(prev => ({ ...prev, [name]: processedValue }));
@@ -274,13 +287,15 @@ const ProductModal: React.FC<ProductModalProps> = ({ product, onClose, onSave })
         if (validate()) {
             const productData: ProductFormData = {
                 name: formData.name.trim(),
-                salePrice: Math.round(Number(formData.salePrice)),
+                // Changed: Removed Math.round to allow decimals
+                salePrice: Number(formData.salePrice), 
                 itemsPerPackage: formData.itemsPerPackage ? Number(formData.itemsPerPackage) : 1,
                 barcode: formData.barcode?.trim() || undefined,
                 manufacturer: formData.manufacturer?.trim() || undefined,
             };
             const firstBatchData: FirstBatchData = {
-                purchasePrice: Math.round(Number(formData.purchasePrice)),
+                // Changed: Removed Math.round to allow decimals
+                purchasePrice: Number(formData.purchasePrice),
                 stock: Number(formData.stock),
                 lotNumber: formData.lotNumber.trim(),
                 purchaseDate: new Date().toISOString(),
@@ -360,8 +375,8 @@ const ProductModal: React.FC<ProductModalProps> = ({ product, onClose, onSave })
                     </div>
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                       <FormInput label="قیمت خرید اولیه" id="purchasePrice" name="purchasePrice" type="text" inputMode="numeric" value={formData.purchasePrice} onChange={handleInputChange} onInput={handleInputChange} required error={errors.purchasePrice} onKeyDown={handleKeyDown} disabled={!!product} />
-                       <FormInput label="قیمت فروش" id="salePrice" name="salePrice" type="text" inputMode="numeric" value={formData.salePrice} onChange={handleInputChange} onInput={handleInputChange} required error={errors.salePrice} onKeyDown={handleKeyDown} />
+                       <FormInput label="قیمت خرید اولیه" id="purchasePrice" name="purchasePrice" type="text" inputMode="decimal" value={formData.purchasePrice} onChange={handleInputChange} onInput={handleInputChange} required error={errors.purchasePrice} onKeyDown={handleKeyDown} disabled={!!product} />
+                       <FormInput label="قیمت فروش" id="salePrice" name="salePrice" type="text" inputMode="decimal" value={formData.salePrice} onChange={handleInputChange} onInput={handleInputChange} required error={errors.salePrice} onKeyDown={handleKeyDown} />
                     </div>
                      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                         <FormInput label="تعداد در بسته" id="itemsPerPackage" name="itemsPerPackage" type="text" inputMode="numeric" value={formData.itemsPerPackage} onChange={handleInputChange} onInput={handleInputChange} placeholder="مثال: 12" onKeyDown={handleKeyDown} />

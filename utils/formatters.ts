@@ -32,8 +32,9 @@ export const parseToPackageAndUnits = (totalStock: number, itemsPerPackage: numb
 };
 
 export const formatCurrency = (amount: number, settings: StoreSettings): string => {
-    const roundedAmount = Math.round(amount);
-    return `${roundedAmount.toLocaleString('fa-IR')} ${settings.currencyName}`;
+    // Use maximumFractionDigits to show decimals only if they exist (e.g., 12.5) and integers as normal (e.g., 100)
+    const formatted = amount.toLocaleString('fa-IR', { maximumFractionDigits: 3 });
+    return `${formatted} ${settings.currencyName}`;
 };
 
 export const numberToPersianWords = (num: number): string => {

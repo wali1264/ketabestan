@@ -44,6 +44,7 @@ interface AppContextType extends AppState {
     beginEditSale: (invoiceId: string) => { success: boolean; message: string; customerId?: string; };
     cancelEditSale: () => void;
     addSaleReturn: (originalInvoiceId: string, returnItems: { id: string; type: 'product' | 'service'; quantity: number }[], cashier: string) => { success: boolean, message: string };
+    setInvoiceTransientCustomer: (invoiceId: string, customerName: string) => Promise<void>;
     
     // Purchase Actions
     addPurchaseInvoice: (invoiceData: Omit<PurchaseInvoice, 'id' | 'totalAmount' | 'items' | 'type' | 'originalInvoiceId'> & { items: Omit<PurchaseInvoiceItem, 'productName'>[] }) => { success: boolean, message: string };
@@ -699,6 +700,23 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         return { success: true, message: "در حال ثبت مرجوعی..." };
     };
 
+    const setInvoiceTransientCustomer = async (invoiceId: string, customerName: string) => {
+         if (!checkOnline()) return;
+         // Update local state optimistically
+         setState(prev => ({
+             ...prev,
+             saleInvoices: prev.saleInvoices.map(inv => 
+                 inv.id === invoiceId ? { ...inv, originalInvoiceId: customerName } : inv
+             )
+         }));
+         // Send update to DB
+         try {
+             await api.updateSaleInvoiceMetadata(invoiceId, { original_invoice_id: customerName || null });
+         } catch (e) {
+             console.error("Failed to save transient customer name", e);
+         }
+    }
+
     // PURCHASE ACTIONS
     const addPurchaseInvoice = (invoiceData: any) => {
         if (!checkOnline()) return { success: false, message: '⚠️ شما آفلاین هستید.' };
@@ -1006,7 +1024,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         addProduct, updateProduct, deleteProduct, addToCart, updateCartItemQuantity, updateCartItemFinalPrice, removeFromCart, completeSale,
         beginEditSale, cancelEditSale, addSaleReturn, addPurchaseInvoice, beginEditPurchase, cancelEditPurchase, updatePurchaseInvoice, addPurchaseReturn,
         updateSettings, addService, deleteService, addSupplier, addSupplierPayment, addCustomer, addCustomerPayment,
-        addEmployee, addEmployeeAdvance, processAndPaySalaries, addExpense,
+        addEmployee, addEmployeeAdvance, processAndPaySalaries, addExpense, setInvoiceTransientCustomer
     }}>{children}</AppContext.Provider>;
 };
 

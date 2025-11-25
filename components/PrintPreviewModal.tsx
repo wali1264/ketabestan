@@ -12,18 +12,22 @@ interface PrintPreviewModalProps {
 }
 
 const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ invoice, onClose }) => {
-    const { storeSettings, customers } = useAppContext();
+    const { storeSettings, customers, setInvoiceTransientCustomer } = useAppContext();
     const [customCustomerName, setCustomCustomerName] = useState('');
     const [isEditingName, setIsEditingName] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
 
-    // Initialize name from registered customer if exists
+    // Initialize name from registered customer if exists, OR from stored originalInvoiceId if type is 'sale'
     useEffect(() => {
-        const customer = invoice.customerId ? customers.find(c => c.id === invoice.customerId) : null;
-        if (customer) {
-            setCustomCustomerName(customer.name);
+        if (invoice.customerId) {
+            const customer = customers.find(c => c.id === invoice.customerId);
+            if (customer) {
+                setCustomCustomerName(customer.name);
+            }
+        } else if (invoice.type === 'sale') {
+            setCustomCustomerName(invoice.originalInvoiceId || '');
         }
-    }, [invoice.customerId, customers]);
+    }, [invoice, customers]);
 
     // Focus input when editing starts
     useEffect(() => {
@@ -32,40 +36,72 @@ const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ invoice, onClose 
         }
     }, [isEditingName]);
 
-    const handlePrint = () => {
-        // Ensure we exit edit mode before printing to show clean text
+    const saveCustomerName = async () => {
+        // Only save for transient customers (no customerId) on sale invoices
+        if (!invoice.customerId && invoice.type === 'sale') {
+            const nameToSave = customCustomerName.trim();
+            const currentSavedName = invoice.originalInvoiceId || '';
+            
+            // Save only if the name has changed
+            if (nameToSave !== currentSavedName) {
+                await setInvoiceTransientCustomer(invoice.id, nameToSave);
+            }
+        }
+    };
+
+    const handlePrint = async () => {
+        // Ensure we exit edit mode
         setIsEditingName(false);
+        
+        // Save name before printing
+        await saveCustomerName();
+
         // Small timeout to allow React to re-render the text view before browser print dialog opens
         setTimeout(() => {
             window.print();
         }, 100);
     };
-    
-    const getPrice = (item: CartItem): { original: number; final: number; discount: number } => {
-        if (item.type === 'product') {
-            const original = item.salePrice;
-            const final = item.finalPrice !== undefined ? item.finalPrice : original;
-            const discount = (original - final) * item.quantity;
-            return { original, final, discount };
-        }
-        // Services don't have discounts in this implementation
-        return { original: item.price, final: item.price, discount: 0 };
-    };
 
-    const getPackageInfo = (item: CartItem) => {
-        if (item.type === 'service') {
-            return { packages: 0, units: item.quantity };
+    const handleClose = async () => {
+        setIsEditingName(false);
+        // Save name before closing
+        await saveCustomerName();
+        onClose();
+    };
+    
+    const getItemDetails = (item: CartItem) => {
+        const isService = item.type === 'service';
+        const itemsPerPack = !isService && (item as InvoiceItem).itemsPerPackage ? (item as InvoiceItem).itemsPerPackage! : 1;
+        
+        const totalQty = item.quantity;
+        const pkgCount = Math.floor(totalQty / itemsPerPack);
+        const unitCount = totalQty % itemsPerPack;
+        
+        // Price calculation
+        let unitPrice = 0;
+        if (item.type === 'product') {
+            unitPrice = item.finalPrice !== undefined ? item.finalPrice : item.salePrice;
+        } else {
+            unitPrice = item.price;
         }
-        const pItem = item as InvoiceItem;
-        const itemsPerPack = pItem.itemsPerPackage || 1;
-        const packages = Math.floor(item.quantity / itemsPerPack);
-        const units = item.quantity % itemsPerPack;
-        return { packages, units };
+        
+        const pkgPrice = unitPrice * itemsPerPack;
+        const totalPrice = unitPrice * totalQty;
+        
+        return {
+            isService,
+            itemsPerPack,
+            pkgCount,
+            unitCount,
+            unitPrice,
+            pkgPrice,
+            totalPrice
+        };
     };
 
     return (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white p-8 rounded-lg shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+            <div className="bg-white p-8 rounded-lg shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
                 <div id="print-modal-content" className="text-gray-900 flex-grow flex flex-col min-h-0">
                     <div className="text-center mb-6 border-b pb-4">
                         <h1 className="text-3xl font-extrabold text-blue-600">{storeSettings.storeName}</h1>
@@ -117,46 +153,63 @@ const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ invoice, onClose 
                     </div>
 
                     <div className="flex-grow overflow-y-auto border-t border-b min-h-0">
-                        <table className="min-w-full text-sm">
+                        <table className="min-w-full text-sm border-collapse">
                             <thead className="bg-slate-100 sticky top-0">
                                 <tr>
-                                    <th className="p-2 text-center font-bold border-l w-10">#</th>
-                                    <th className="p-2 text-right font-bold border-l">کالا / خدمت</th>
-                                    <th className="p-2 text-center font-bold border-l w-16 bg-blue-50 text-blue-800">بسته</th>
-                                    <th className="p-2 text-center font-bold border-l w-16 bg-blue-50 text-blue-800">عدد</th>
-                                    <th className="p-2 text-center font-bold border-l">فی نهایی</th>
-                                    <th className="p-2 text-left font-bold">قیمت کل</th>
+                                    <th rowSpan={2} className="p-2 text-center font-bold border border-slate-400 w-10">#</th>
+                                    <th rowSpan={2} className="p-2 text-right font-bold border border-slate-400">شرح کالا</th>
+                                    <th colSpan={2} className="p-2 text-center font-bold border border-slate-400 bg-blue-50 text-blue-900">تعداد (مقدار)</th>
+                                    <th colSpan={2} className="p-2 text-center font-bold border border-slate-400">قیمت (فی)</th>
+                                    <th rowSpan={2} className="p-2 text-center font-bold border border-slate-400 w-24">قیمت کل</th>
+                                </tr>
+                                <tr>
+                                    <th className="p-1 text-center font-bold border border-slate-400 bg-blue-50 text-xs w-16">بسته</th>
+                                    <th className="p-1 text-center font-bold border border-slate-400 bg-blue-50 text-xs w-16">عدد</th>
+                                    <th className="p-1 text-center font-bold border border-slate-400 text-xs w-20">فی بسته</th>
+                                    <th className="p-1 text-center font-bold border border-slate-400 text-xs w-20">فی عدد</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {invoice.items.map((item, index) => {
-                                    const prices = getPrice(item);
-                                    const { packages, units } = getPackageInfo(item);
+                                    const details = getItemDetails(item);
                                     
                                     return (
-                                     <tr key={`${item.id}-${item.type}`} className="border-b hover:bg-slate-50">
-                                        <td className="p-2 text-center border-l font-mono text-slate-500">{index + 1}</td>
-                                        <td className="p-2 text-right border-l">
-                                            <p className="font-semibold text-slate-800">{item.name}</p>
-                                            {prices.discount > 0 && (
-                                                <div className="text-[10px] text-green-600">
-                                                    (تخفیف: {Math.round(prices.discount).toLocaleString('fa-IR')})
-                                                </div>
-                                            )}
-                                        </td>
-                                        <td className="p-2 text-center border-l font-bold bg-blue-50/30">
-                                            {packages > 0 ? packages.toLocaleString('fa-IR') : '-'}
-                                        </td>
-                                        <td className="p-2 text-center border-l font-bold bg-blue-50/30">
-                                            {units > 0 ? units.toLocaleString('fa-IR') : (packages > 0 ? '0' : '-')}
-                                        </td>
-                                        <td className="p-2 text-center border-l">
-                                            {Math.round(prices.final).toLocaleString('fa-IR')}
-                                        </td>
-                                        <td className="p-2 text-left font-bold text-slate-800">
-                                            {Math.round(item.quantity * prices.final).toLocaleString('fa-IR')}
-                                        </td>
-                                    </tr>
+                                        <tr key={`${item.id}-${item.type}`} className="border-b border-slate-300 hover:bg-slate-50">
+                                            <td className="p-2 text-center border border-slate-300 font-mono text-slate-500">{index + 1}</td>
+                                            <td className="p-2 text-right border border-slate-300">
+                                                <p className="font-semibold text-slate-800">{item.name}</p>
+                                                {item.type === 'product' && (item as any).finalPrice !== undefined && (item as any).finalPrice !== (item as any).salePrice && (
+                                                    <span className="text-[10px] text-green-600 block">
+                                                        (با تخفیف)
+                                                    </span>
+                                                )}
+                                            </td>
+                                            
+                                            {/* Packages Count */}
+                                            <td className="p-2 text-center border border-slate-300 font-bold bg-blue-50/30">
+                                                {details.pkgCount > 0 ? details.pkgCount.toLocaleString('fa-IR') : '-'}
+                                            </td>
+                                            
+                                            {/* Units Count */}
+                                            <td className="p-2 text-center border border-slate-300 font-bold bg-blue-50/30">
+                                                {details.unitCount > 0 ? details.unitCount.toLocaleString('fa-IR') : (details.pkgCount > 0 ? '-' : '0')}
+                                            </td>
+
+                                            {/* Package Price */}
+                                            <td className="p-2 text-center border border-slate-300 text-xs md:text-sm">
+                                                {(details.pkgCount > 0 || details.itemsPerPack > 1) ? Math.round(details.pkgPrice).toLocaleString('fa-IR') : '-'}
+                                            </td>
+
+                                            {/* Unit Price */}
+                                            <td className="p-2 text-center border border-slate-300 text-xs md:text-sm">
+                                                {Math.round(details.unitPrice).toLocaleString('fa-IR')}
+                                            </td>
+
+                                            {/* Total Price */}
+                                            <td className="p-2 text-center border border-slate-300 font-bold text-slate-800">
+                                                {Math.round(details.totalPrice).toLocaleString('fa-IR')}
+                                            </td>
+                                        </tr>
                                     )
                                 })}
                             </tbody>
@@ -188,7 +241,7 @@ const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ invoice, onClose 
                     </button>
 
                     <div className="flex space-x-3 space-x-reverse">
-                        <button onClick={onClose} className="px-6 py-3 rounded-lg bg-gray-200 hover:bg-gray-300 transition-colors font-semibold">بستن</button>
+                        <button onClick={handleClose} className="px-6 py-3 rounded-lg bg-gray-200 hover:bg-gray-300 transition-colors font-semibold">بستن</button>
                         <button onClick={handlePrint} className="px-6 py-3 rounded-lg bg-blue-600 text-white hover:bg-blue-700 shadow-lg btn-primary font-semibold">چاپ نهایی</button>
                     </div>
                 </div>

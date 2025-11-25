@@ -421,6 +421,11 @@ export const api = {
         }
     },
 
+    updateSaleInvoiceMetadata: async (invoiceId: string, updates: { original_invoice_id?: string | null }) => {
+        const { error } = await supabase.from('sale_invoices').update(updates).eq('id', invoiceId);
+        if (error) throw error;
+    },
+
     createSaleReturn: async (returnInvoice: SaleInvoice, stockRestores: {productId: string, quantity: number}[], customerRefund?: {id: string, amount: number}) => {
          const { error: iError } = await supabase.from('sale_invoices').insert({
             id: returnInvoice.id,

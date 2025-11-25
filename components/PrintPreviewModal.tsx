@@ -71,11 +71,23 @@ const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ invoice, onClose 
     
     const getItemDetails = (item: CartItem) => {
         const isService = item.type === 'service';
-        const itemsPerPack = !isService && (item as InvoiceItem).itemsPerPackage ? (item as InvoiceItem).itemsPerPackage! : 1;
+        // Ensure itemsPerPack is at least 1
+        let itemsPerPack = !isService && (item as InvoiceItem).itemsPerPackage ? (item as InvoiceItem).itemsPerPackage! : 1;
+        if (itemsPerPack < 1) itemsPerPack = 1;
         
         const totalQty = item.quantity;
-        const pkgCount = Math.floor(totalQty / itemsPerPack);
-        const unitCount = totalQty % itemsPerPack;
+        let pkgCount = 0;
+        let unitCount = 0;
+
+        // Logic Fix: If itemsPerPack is 1, strictly treat it as Units, not Packages.
+        // This ensures standard items don't show up in the Package column.
+        if (itemsPerPack === 1 || isService) {
+            pkgCount = 0;
+            unitCount = totalQty;
+        } else {
+            pkgCount = Math.floor(totalQty / itemsPerPack);
+            unitCount = totalQty % itemsPerPack;
+        }
         
         // Price calculation
         let unitPrice = 0;
@@ -183,6 +195,12 @@ const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ invoice, onClose 
                                                         (با تخفیف)
                                                     </span>
                                                 )}
+                                                {/* Optional: Show items per pack hint if it's a package item */}
+                                                {details.itemsPerPack > 1 && (
+                                                    <span className="text-[9px] text-slate-400 block">
+                                                        (تعداد در بسته: {details.itemsPerPack})
+                                                    </span>
+                                                )}
                                             </td>
                                             
                                             {/* Packages Count */}
@@ -192,17 +210,19 @@ const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ invoice, onClose 
                                             
                                             {/* Units Count */}
                                             <td className="p-2 text-center border border-slate-300 font-bold bg-blue-50/30">
-                                                {details.unitCount > 0 ? details.unitCount.toLocaleString('fa-IR') : (details.pkgCount > 0 ? '-' : '0')}
+                                                {details.unitCount > 0 ? details.unitCount.toLocaleString('fa-IR') : '-'}
                                             </td>
 
-                                            {/* Package Price */}
+                                            {/* Package Price (Fee Baste) */}
                                             <td className="p-2 text-center border border-slate-300 text-xs md:text-sm">
-                                                {(details.pkgCount > 0 || details.itemsPerPack > 1) ? Math.round(details.pkgPrice).toLocaleString('fa-IR') : '-'}
+                                                {/* Show Package Price only if we actually sold packages */}
+                                                {details.pkgCount > 0 ? Math.round(details.pkgPrice).toLocaleString('fa-IR') : '-'}
                                             </td>
 
-                                            {/* Unit Price */}
+                                            {/* Unit Price (Fee Adad) */}
                                             <td className="p-2 text-center border border-slate-300 text-xs md:text-sm">
-                                                {Math.round(details.unitPrice).toLocaleString('fa-IR')}
+                                                {/* Show Unit Price only if we actually sold separate units */}
+                                                {details.unitCount > 0 ? Math.round(details.unitPrice).toLocaleString('fa-IR') : '-'}
                                             </td>
 
                                             {/* Total Price */}

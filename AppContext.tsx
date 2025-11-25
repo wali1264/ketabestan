@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, ReactNode, useState, useEffect } from 'react';
 import type {
     Product, ProductBatch, SaleInvoice, PurchaseInvoice, PurchaseInvoiceItem, InvoiceItem,
@@ -150,6 +151,25 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             }
             // ------------------------------
 
+            // --- HYDRATION: Re-link Product Details to Invoices ---
+            // When invoices come from DB, itemsPerPackage defaults to 1. 
+            // We need to look up the current product definition to know how to split Packages/Units correctly.
+            const hydratedSaleInvoices = invoices.saleInvoices.map(invoice => ({
+                ...invoice,
+                items: invoice.items.map(item => {
+                    if (item.type === 'product') {
+                        const product = products.find(p => p.id === item.id);
+                        if (product) {
+                            return {
+                                ...item,
+                                itemsPerPackage: product.itemsPerPackage || 1
+                            };
+                        }
+                    }
+                    return item;
+                })
+            }));
+
             setState(prev => ({
                 ...prev,
                 storeSettings: settings,
@@ -164,7 +184,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 customerTransactions: transactions.customerTransactions,
                 supplierTransactions: transactions.supplierTransactions,
                 payrollTransactions: transactions.payrollTransactions,
-                saleInvoices: invoices.saleInvoices,
+                saleInvoices: hydratedSaleInvoices, // Use hydrated invoices
                 purchaseInvoices: invoices.purchaseInvoices,
                 activities: activity,
                 saleInvoiceCounter: invoices.saleInvoices.length,

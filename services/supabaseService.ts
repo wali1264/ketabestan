@@ -1,3 +1,4 @@
+
 import { supabase } from '../utils/supabaseClient';
 import type { 
     Product, ProductBatch, SaleInvoice, PurchaseInvoice, Supplier, Customer, 
@@ -37,7 +38,7 @@ const mapProduct = (data: any): Product => ({
     salePrice: Number(data.sale_price),
     barcode: data.barcode,
     manufacturer: data.manufacturer,
-    itemsPerPackage: data.items_per_package,
+    itemsPerPackage: Number(data.items_per_package) || 1, // Ensure Number type
     batches: data.product_batches?.map((b: any) => ({
         id: b.id,
         lotNumber: b.lot_number,

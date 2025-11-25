@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { parseToPackageAndUnits, parseToTotalUnits } from '../utils/formatters';
 import { ChevronUpIcon, ChevronDownIcon } from './icons';
@@ -48,35 +49,44 @@ const NumberStepper: React.FC<{ value: string, onChange: (value: string) => void
 
 
 const PackageUnitInput: React.FC<PackageUnitInputProps> = ({ totalUnits, itemsPerPackage, onChange, className = '' }) => {
+    // We keep local state strings to allow typing, but we normalize them on every significant change
     const [packages, setPackages] = useState('0');
     const [units, setUnits] = useState('0');
     
     const isPackageMode = itemsPerPackage > 1;
 
+    // Sync with prop changes (e.g. from database or other inputs)
     useEffect(() => {
         const { packages: p, units: u } = parseToPackageAndUnits(totalUnits, itemsPerPackage);
         setPackages(String(p));
         setUnits(String(u));
     }, [totalUnits, itemsPerPackage]);
 
-    const triggerChange = (pStr: string, uStr: string) => {
-        const p = Number(pStr) || 0;
-        const u = Number(uStr) || 0;
-        if (isNaN(p) || isNaN(u)) return;
-        const total = parseToTotalUnits(p, u, itemsPerPackage);
+    // Helper to normalize and broadcast changes
+    // This calculates the Total, then immediately re-calculates the Packages/Units distribution
+    // to create the "snap" effect (e.g. 20 units -> 1 package, 0 units)
+    const processChange = (pVal: number, uVal: number) => {
+        const total = parseToTotalUnits(pVal, uVal, itemsPerPackage);
+        
+        // Normalize immediately
+        const { packages: normP, units: normU } = parseToPackageAndUnits(total, itemsPerPackage);
+        
+        setPackages(String(normP));
+        setUnits(String(normU));
+        
         onChange(total);
-    }
+    };
 
     const handlePackageChange = (value: string) => {
-        const newPackages = value.replace(/[^0-9]/g, '');
-        setPackages(newPackages);
-        triggerChange(newPackages, units);
+        const pVal = Number(value.replace(/[^0-9]/g, '')) || 0;
+        const uVal = Number(units) || 0;
+        processChange(pVal, uVal);
     };
 
     const handleUnitChange = (value: string) => {
-        const newUnits = value.replace(/[^0-9]/g, '');
-        setUnits(newUnits);
-        triggerChange(packages, newUnits);
+        const pVal = Number(packages) || 0;
+        const uVal = Number(value.replace(/[^0-9]/g, '')) || 0;
+        processChange(pVal, uVal);
     };
 
     return (
@@ -86,16 +96,16 @@ const PackageUnitInput: React.FC<PackageUnitInputProps> = ({ totalUnits, itemsPe
                     label="بسته"
                     value={packages}
                     onChange={handlePackageChange}
-                    onIncrement={() => handlePackageChange(String((Number(packages) || 0) + 1))}
-                    onDecrement={() => handlePackageChange(String(Math.max(0, (Number(packages) || 0) - 1)))}
+                    onIncrement={() => processChange((Number(packages)||0) + 1, Number(units)||0)}
+                    onDecrement={() => processChange(Math.max(0, (Number(packages)||0) - 1), Number(units)||0)}
                 />
             )}
              <NumberStepper
                 label="عدد"
                 value={units}
                 onChange={handleUnitChange}
-                onIncrement={() => handleUnitChange(String((Number(units) || 0) + 1))}
-                onDecrement={() => handleUnitChange(String(Math.max(0, (Number(units) || 0) - 1)))}
+                onIncrement={() => processChange(Number(packages)||0, (Number(units)||0) + 1)}
+                onDecrement={() => processChange(Number(packages)||0, Math.max(0, (Number(units)||0) - 1))}
              />
         </div>
     );

@@ -31,7 +31,7 @@ const PurchasePrintPreviewModal: React.FC<PurchasePrintPreviewModalProps> = ({ i
                     <div className="flex justify-between text-md mb-6">
                         <div>
                             <p><strong>شماره فاکتور:</strong> <span className="font-mono">{invoice.invoiceNumber || invoice.id}</span></p>
-                            <p><strong>تأمین کننده:</strong> {supplier?.name || 'ناشناس'}</p>
+                            <p><strong>تأمین کننده:</strong> {supplier?.name || 'تأمین کننده حذف شده'}</p>
                         </div>
                         <div className="text-left">
                             <p><strong>تاریخ:</strong> {new Date(invoice.timestamp).toLocaleDateString('fa-IR')}</p>

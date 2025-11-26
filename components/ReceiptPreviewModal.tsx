@@ -22,6 +22,9 @@ const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({ person, trans
     
     const title = type === 'supplier' ? 'رسید پرداخت وجه' : 'رسید دریافت وجه';
     const partyLabel = type === 'supplier' ? 'پرداخت شده به' : 'دریافت شده از';
+    
+    // Safe access for deleted persons
+    const personName = person ? person.name : 'حساب حذف شده';
 
     return (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
@@ -38,7 +41,7 @@ const ReceiptPreviewModal: React.FC<ReceiptPreviewModalProps> = ({ person, trans
                         <p><strong>تاریخ:</strong> {new Date(transaction.date).toLocaleDateString('fa-IR', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
                     </div>
                     <div className="space-y-4 text-md border-y border-slate-200 py-6 px-4 bg-slate-50 rounded-lg">
-                        <p><strong>{partyLabel}:</strong> محترم <span className="font-bold text-lg">{person.name}</span></p>
+                        <p><strong>{partyLabel}:</strong> محترم <span className="font-bold text-lg">{personName}</span></p>
                         <p><strong>مبلغ به عدد:</strong> <span className="font-bold font-mono text-xl mx-2">{formatCurrency(transaction.amount, storeSettings)}</span></p>
                         <p><strong>مبلغ به حروف:</strong> <span className="font-bold text-lg text-blue-800">{numberToPersianWords(transaction.amount)} {storeSettings.currencyName}</span></p>
                          <p><strong>بابت:</strong> {transaction.description}</p>

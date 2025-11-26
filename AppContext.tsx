@@ -1,4 +1,5 @@
 
+
 import React, { createContext, useContext, ReactNode, useState, useEffect } from 'react';
 import type {
     Product, ProductBatch, SaleInvoice, PurchaseInvoice, PurchaseInvoiceItem, InvoiceItem,
@@ -62,10 +63,14 @@ interface AppContextType extends AppState {
     deleteService: (serviceId: string) => void;
     
     // Accounting
-    addSupplier: (supplier: Omit<Supplier, 'id' | 'balance'>) => void;
+    addSupplier: (supplier: Omit<Supplier, 'id' | 'balance'>, initialBalance?: { amount: number, type: 'creditor' | 'debtor', currency: 'AFN' | 'USD', exchangeRate?: number }) => void;
+    deleteSupplier: (id: string) => void;
     addSupplierPayment: (supplierId: string, amount: number, description: string, currency?: 'AFN' | 'USD', exchangeRate?: number) => SupplierTransaction;
-    addCustomer: (customer: Omit<Customer, 'id' | 'balance'>) => void;
+    
+    addCustomer: (customer: Omit<Customer, 'id' | 'balance'>, initialBalance?: { amount: number, type: 'creditor' | 'debtor', currency: 'AFN' | 'USD', exchangeRate?: number }) => void;
+    deleteCustomer: (id: string) => void;
     addCustomerPayment: (customerId: string, amount: number, description: string) => CustomerTransaction;
+    
     addEmployee: (employee: Omit<Employee, 'id'|'balance'>) => void;
     addEmployeeAdvance: (employeeId: string, amount: number) => void;
     processAndPaySalaries: () => { success: boolean; message: string };
@@ -935,8 +940,131 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
 
     // ACCOUNTING
-    const addSupplier = (s: any) => api.addSupplier(s).then(newS => { setState(prev => ({...prev, suppliers: [...prev.suppliers, newS]})); showToast("تامین کننده افزوده شد"); });
-    const addCustomer = (c: any) => api.addCustomer(c).then(newC => { setState(prev => ({...prev, customers: [...prev.customers, newC]})); showToast("مشتری افزوده شد"); });
+    const addSupplier = (s: any, initialBalance?: { amount: number, type: 'creditor' | 'debtor', currency: 'AFN' | 'USD', exchangeRate?: number }) => {
+        api.addSupplier(s).then(newS => {
+            setState(prev => ({...prev, suppliers: [...prev.suppliers, newS]}));
+            if (initialBalance && initialBalance.amount > 0) {
+                const isUSD = initialBalance.currency === 'USD';
+                const rate = isUSD ? (initialBalance.exchangeRate || 1) : 1;
+                const amountInBase = initialBalance.amount * rate;
+                const originalAmount = initialBalance.amount;
+
+                if (initialBalance.type === 'creditor') {
+                    // We owe them
+                    const transaction: SupplierTransaction = {
+                        id: crypto.randomUUID(),
+                        supplierId: newS.id,
+                        type: 'purchase',
+                        amount: originalAmount, // Face value
+                        date: new Date().toISOString(),
+                        description: 'تراز اول دوره (بدهی قبلی ما)',
+                        currency: initialBalance.currency
+                    };
+                    // Update balance in base currency (AFN)
+                    api.processPayment('supplier', newS.id, amountInBase, transaction).then(() => {
+                        setState(prev => ({
+                            ...prev,
+                            suppliers: prev.suppliers.map(sup => sup.id === newS.id ? { ...sup, balance: amountInBase } : sup),
+                            supplierTransactions: [transaction, ...prev.supplierTransactions]
+                        }));
+                    });
+                } else {
+                    // They owe us (Payment)
+                    const transaction: SupplierTransaction = {
+                        id: crypto.randomUUID(),
+                        supplierId: newS.id,
+                        type: 'payment',
+                        amount: originalAmount,
+                        date: new Date().toISOString(),
+                        description: 'تراز اول دوره (طلب ما)',
+                        currency: initialBalance.currency
+                    };
+                    api.processPayment('supplier', newS.id, -amountInBase, transaction).then(() => {
+                        setState(prev => ({
+                            ...prev,
+                            suppliers: prev.suppliers.map(sup => sup.id === newS.id ? { ...sup, balance: -amountInBase } : sup),
+                            supplierTransactions: [transaction, ...prev.supplierTransactions]
+                        }));
+                    });
+                }
+            }
+            showToast("تامین کننده افزوده شد");
+        });
+    };
+
+    const deleteSupplier = async (id: string) => {
+        if (!checkOnline()) { showToast("⚠️ شما آفلاین هستید."); return; }
+        try {
+            await api.deleteSupplier(id);
+            setState(prev => ({ ...prev, suppliers: prev.suppliers.filter(s => s.id !== id) }));
+            showToast("✅ تامین کننده حذف شد.");
+        } catch (e) {
+            console.error(e);
+            showToast("❌ خطا: امکان حذف وجود ندارد (شاید تراکنش وابسته دارد).");
+        }
+    };
+
+    const addCustomer = (c: any, initialBalance?: { amount: number, type: 'creditor' | 'debtor', currency: 'AFN' | 'USD', exchangeRate?: number }) => {
+        api.addCustomer(c).then(newC => {
+            setState(prev => ({...prev, customers: [...prev.customers, newC]}));
+            if (initialBalance && initialBalance.amount > 0) {
+                const isUSD = initialBalance.currency === 'USD';
+                const rate = isUSD ? (initialBalance.exchangeRate || 1) : 1;
+                const amountInBase = initialBalance.amount * rate;
+                const descSuffix = isUSD ? ` (معادل ${initialBalance.amount.toLocaleString()}$ با نرخ ${rate})` : '';
+
+                if (initialBalance.type === 'debtor') {
+                    // Customer owes us
+                    const transaction = {
+                        id: crypto.randomUUID(),
+                        customerId: newC.id,
+                        type: 'credit_sale' as const,
+                        amount: amountInBase, // Always AFN for Customer Transactions currently
+                        date: new Date().toISOString(),
+                        description: `تراز اول دوره (بدهی مشتری)${descSuffix}`,
+                    };
+                    api.processPayment('customer', newC.id, amountInBase, transaction).then(() => {
+                        setState(prev => ({
+                            ...prev,
+                            customers: prev.customers.map(cust => cust.id === newC.id ? { ...cust, balance: amountInBase } : cust),
+                            customerTransactions: [transaction, ...prev.customerTransactions]
+                        }));
+                    });
+                } else {
+                    // We owe customer (Prepayment)
+                    const transaction = {
+                        id: crypto.randomUUID(),
+                        customerId: newC.id,
+                        type: 'payment' as const,
+                        amount: amountInBase,
+                        date: new Date().toISOString(),
+                        description: `تراز اول دوره (طلب مشتری/پیش‌پرداخت)${descSuffix}`,
+                    };
+                    api.processPayment('customer', newC.id, -amountInBase, transaction).then(() => {
+                        setState(prev => ({
+                            ...prev,
+                            customers: prev.customers.map(cust => cust.id === newC.id ? { ...cust, balance: -amountInBase } : cust),
+                            customerTransactions: [transaction, ...prev.customerTransactions]
+                        }));
+                    });
+                }
+            }
+            showToast("مشتری افزوده شد");
+        });
+    };
+
+    const deleteCustomer = async (id: string) => {
+        if (!checkOnline()) { showToast("⚠️ شما آفلاین هستید."); return; }
+        try {
+            await api.deleteCustomer(id);
+            setState(prev => ({ ...prev, customers: prev.customers.filter(c => c.id !== id) }));
+            showToast("✅ مشتری حذف شد.");
+        } catch (e) {
+            console.error(e);
+            showToast("❌ خطا: امکان حذف وجود ندارد (شاید فاکتور وابسته دارد).");
+        }
+    };
+
     const addEmployee = (e: any) => api.addEmployee(e).then(newE => { setState(prev => ({...prev, employees: [...prev.employees, newE]})); showToast("کارمند افزوده شد"); });
     const addExpense = (e: any) => api.addExpense(e).then(newE => { setState(prev => ({...prev, expenses: [...prev.expenses, newE]})); showToast("هزینه ثبت شد"); });
 
@@ -1043,7 +1171,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         ...state, showToast, isLoading, login, logout, hasPermission, addUser, updateUser, deleteUser, addRole, updateRole, deleteRole, exportData, importData,
         addProduct, updateProduct, deleteProduct, addToCart, updateCartItemQuantity, updateCartItemFinalPrice, removeFromCart, completeSale,
         beginEditSale, cancelEditSale, addSaleReturn, addPurchaseInvoice, beginEditPurchase, cancelEditPurchase, updatePurchaseInvoice, addPurchaseReturn,
-        updateSettings, addService, deleteService, addSupplier, addSupplierPayment, addCustomer, addCustomerPayment,
+        updateSettings, addService, deleteService, addSupplier, deleteSupplier, addSupplierPayment, addCustomer, deleteCustomer, addCustomerPayment,
         addEmployee, addEmployeeAdvance, processAndPaySalaries, addExpense, setInvoiceTransientCustomer
     }}>{children}</AppContext.Provider>;
 };

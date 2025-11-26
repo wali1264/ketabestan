@@ -23,6 +23,9 @@ const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ invoice, onClose 
             const customer = customers.find(c => c.id === invoice.customerId);
             if (customer) {
                 setCustomCustomerName(customer.name);
+            } else {
+                // Fallback if customer was deleted but ID remains on invoice
+                setCustomCustomerName('مشتری حذف شده');
             }
         } else if (invoice.type === 'sale') {
             setCustomCustomerName(invoice.originalInvoiceId || '');

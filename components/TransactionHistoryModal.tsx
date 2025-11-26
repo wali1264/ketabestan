@@ -20,6 +20,8 @@ const TransactionHistoryModal: React.FC<TransactionHistoryModalProps> = ({ perso
     const [dateRange, setDateRange] = useState<{ start: Date, end: Date }>({ start: new Date(), end: new Date() });
     const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState(false);
 
+    // Safety check
+    if (!person) return null;
 
     const filteredTransactions = useMemo(() => {
         if (!dateRange.start || !dateRange.end) return [];

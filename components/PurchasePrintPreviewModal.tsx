@@ -1,3 +1,4 @@
+
 import React from 'react';
 import type { PurchaseInvoice, Supplier } from '../types';
 import { XIcon } from './icons';
@@ -52,8 +53,8 @@ const PurchasePrintPreviewModal: React.FC<PurchasePrintPreviewModalProps> = ({ i
                                     <tr key={item.productId + item.lotNumber} className="border-b">
                                         <td className="p-3 text-right font-semibold">{item.productName}</td>
                                         <td className="p-3 text-center">{item.quantity}</td>
-                                        <td className="p-3 text-center">{Math.round(item.purchasePrice).toLocaleString('fa-IR')}</td>
-                                        <td className="p-3 text-left font-semibold">{Math.round(item.quantity * item.purchasePrice).toLocaleString('fa-IR')}</td>
+                                        <td className="p-3 text-center">{item.purchasePrice.toLocaleString('fa-IR', { maximumFractionDigits: 3 })}</td>
+                                        <td className="p-3 text-left font-semibold">{(item.quantity * item.purchasePrice).toLocaleString('fa-IR', { maximumFractionDigits: 3 })}</td>
                                     </tr>
                                 ))}
                             </tbody>

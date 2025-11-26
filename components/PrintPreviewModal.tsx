@@ -216,18 +216,18 @@ const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ invoice, onClose 
                                             {/* Package Price (Fee Baste) */}
                                             <td className="p-2 text-center border border-slate-300 text-xs md:text-sm">
                                                 {/* Show Package Price only if we actually sold packages */}
-                                                {details.pkgCount > 0 ? Math.round(details.pkgPrice).toLocaleString('fa-IR') : '-'}
+                                                {details.pkgCount > 0 ? details.pkgPrice.toLocaleString('fa-IR', { maximumFractionDigits: 3 }) : '-'}
                                             </td>
 
                                             {/* Unit Price (Fee Adad) */}
                                             <td className="p-2 text-center border border-slate-300 text-xs md:text-sm">
                                                 {/* Show Unit Price only if we actually sold separate units */}
-                                                {details.unitCount > 0 ? Math.round(details.unitPrice).toLocaleString('fa-IR') : '-'}
+                                                {details.unitCount > 0 ? details.unitPrice.toLocaleString('fa-IR', { maximumFractionDigits: 3 }) : '-'}
                                             </td>
 
                                             {/* Total Price */}
                                             <td className="p-2 text-center border border-slate-300 font-bold text-slate-800">
-                                                {Math.round(details.totalPrice).toLocaleString('fa-IR')}
+                                                {details.totalPrice.toLocaleString('fa-IR', { maximumFractionDigits: 3 })}
                                             </td>
                                         </tr>
                                     )

@@ -476,7 +476,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setState(prev => ({
             ...prev, cart: prev.cart.map(item =>
                 (item.id === itemId && item.type === itemType && item.type === 'product')
-                    ? { ...item, finalPrice: Math.round(finalPrice) }
+                    ? { ...item, finalPrice: finalPrice } // Removed Math.round()
                     : item
             )
         }));
@@ -550,9 +550,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             id: invoiceId, 
             type: 'sale', 
             items: saleItemsWithPurchasePrice, 
-            subtotal: Math.round(newSubtotal), 
-            totalAmount: Math.round(newTotalAmount), 
-            totalDiscount: Math.round(newTotalDiscount), 
+            subtotal: newSubtotal, // Removed Math.round
+            totalAmount: newTotalAmount, // Removed Math.round
+            totalDiscount: newTotalDiscount, // Removed Math.round
             timestamp: editingSaleInvoiceId ? saleInvoices.find(i=>i.id===invoiceId)!.timestamp : new Date().toISOString(), 
             cashier, 
             customerId, 
@@ -756,7 +756,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             ...item, 
             productName: products.find(p => p.id === item.productId)?.name || 'نامشخص',
             // Store Base Price (AFN) in DB for accurate Cost of Goods Sold
-            purchasePrice: Math.round(item.purchasePrice * rate)
+            purchasePrice: item.purchasePrice * rate
         }));
         
         // Total Amount in Base Currency (AFN) for Supplier Balance
@@ -772,7 +772,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
              id: invoiceId,
              invoiceNumber: finalInvoiceNumber, // Use auto-filled number
              items: finalItems, 
-             totalAmount: Math.round(totalAmount),
+             totalAmount: totalAmount,
              currency: invoiceData.currency,
              exchangeRate: rate
         };

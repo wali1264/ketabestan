@@ -1,5 +1,4 @@
 
-
 import React, { useState, useMemo } from 'react';
 import type { Supplier, Customer, Employee, AnyTransaction, PayrollTransaction } from '../types';
 import { XIcon, PrintIcon } from './icons';
@@ -96,8 +95,8 @@ const TransactionHistoryModal: React.FC<TransactionHistoryModalProps> = ({ perso
                         <tr key={t.id} className="hover:bg-blue-50 transition-colors border-b last:border-0">
                             <td data-label="تاریخ" className="p-3 text-slate-600">{new Date(t.date).toLocaleDateString('fa-IR')}</td>
                             <td data-label="شرح" className="p-3 text-slate-800 font-semibold">{t.description}</td>
-                            <td data-label="بدهکار" className="p-3 text-red-600 font-mono">{debit > 0 ? `${Math.round(debit).toLocaleString('fa-IR')} ${currencySymbol}` : '-'}</td>
-                            <td data-label="بستانکار" className="p-3 text-green-600 font-mono">{credit > 0 ? `${Math.round(credit).toLocaleString('fa-IR')} ${currencySymbol}` : '-'}</td>
+                            <td data-label="بدهکار" className="p-3 text-red-600 font-mono">{debit > 0 ? `${debit.toLocaleString('fa-IR', { maximumFractionDigits: 3 })} ${currencySymbol}` : '-'}</td>
+                            <td data-label="بستانکار" className="p-3 text-green-600 font-mono">{credit > 0 ? `${credit.toLocaleString('fa-IR', { maximumFractionDigits: 3 })} ${currencySymbol}` : '-'}</td>
                             <td className="p-3 actions-cell">
                                 {t.type === 'payment' && (
                                     <button onClick={() => onReprint(t.id)} className="p-2 rounded-full text-gray-500 hover:text-green-600 hover:bg-green-100 transition-colors" title="چاپ مجدد رسید">

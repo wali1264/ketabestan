@@ -6,7 +6,7 @@ import PackageUnitInput from './PackageUnitInput';
 import { formatCurrency } from '../utils/formatters';
 
 const CartItemPriceEditor: React.FC<{ item: InvoiceItem, onSave: (price: number) => void, onCancel: () => void }> = ({ item, onSave, onCancel }) => {
-    const [price, setPrice] = useState(String(Math.round(item.finalPrice !== undefined ? item.finalPrice : item.salePrice)));
+    const [price, setPrice] = useState(String(item.finalPrice !== undefined ? item.finalPrice : item.salePrice));
     
     const discountPercent = item.salePrice > 0 
         ? (((item.salePrice - Number(price)) / item.salePrice) * 100)
@@ -25,7 +25,7 @@ const CartItemPriceEditor: React.FC<{ item: InvoiceItem, onSave: (price: number)
                         type="text" 
                         inputMode="numeric"
                         value={price}
-                        onChange={(e) => setPrice(e.target.value.replace(/[^0-9]/g, ''))}
+                        onChange={(e) => setPrice(e.target.value.replace(/[^0-9.]/g, ''))} // Allow dot
                         className="w-full p-1 text-center font-bold border border-blue-300 rounded text-sm focus:ring-1 focus:ring-blue-500 outline-none"
                         autoFocus
                         onKeyDown={(e) => e.key === 'Enter' && handleSave()}

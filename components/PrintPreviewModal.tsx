@@ -82,8 +82,6 @@ const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ invoice, onClose 
         let pkgCount = 0;
         let unitCount = 0;
 
-        // Logic Fix: If itemsPerPack is 1, strictly treat it as Units, not Packages.
-        // This ensures standard items don't show up in the Package column.
         if (itemsPerPack === 1 || isService) {
             pkgCount = 0;
             unitCount = totalQty;
@@ -92,10 +90,20 @@ const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ invoice, onClose 
             unitCount = totalQty % itemsPerPack;
         }
         
-        // Price calculation
+        // Price calculation: Smart Display Logic
+        // If Final Price > Sale Price (Surcharge), show Final Price as the Unit Price to hide surcharge from customer.
+        // If Final Price < Sale Price (Discount), show Original Sale Price as Unit Price (and show discount later).
         let unitPrice = 0;
+        
         if (item.type === 'product') {
-            unitPrice = item.finalPrice !== undefined ? item.finalPrice : item.salePrice;
+            const originalPrice = item.salePrice;
+            const final = item.finalPrice !== undefined ? item.finalPrice : originalPrice;
+            
+            if (final > originalPrice) {
+                unitPrice = final; // Show higher price as standard
+            } else {
+                unitPrice = originalPrice; // Show standard price (discount will be shown at bottom)
+            }
         } else {
             unitPrice = item.price;
         }
@@ -193,12 +201,12 @@ const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ invoice, onClose 
                                             <td className="p-2 text-center border border-slate-300 font-mono text-slate-500">{index + 1}</td>
                                             <td className="p-2 text-right border border-slate-300">
                                                 <p className="font-semibold text-slate-800">{item.name}</p>
-                                                {item.type === 'product' && (item as any).finalPrice !== undefined && (item as any).finalPrice !== (item as any).salePrice && (
+                                                {/* Only show discount tag if it's a real discount, NOT surcharge */}
+                                                {item.type === 'product' && (item as any).finalPrice !== undefined && (item as any).finalPrice < (item as any).salePrice && (
                                                     <span className="text-[10px] text-green-600 block">
                                                         (با تخفیف)
                                                     </span>
                                                 )}
-                                                {/* Optional: Show items per pack hint if it's a package item */}
                                                 {details.itemsPerPack > 1 && (
                                                     <span className="text-[9px] text-slate-400 block">
                                                         (تعداد در بسته: {details.itemsPerPack})
@@ -218,13 +226,11 @@ const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ invoice, onClose 
 
                                             {/* Package Price (Fee Baste) */}
                                             <td className="p-2 text-center border border-slate-300 text-xs md:text-sm">
-                                                {/* Show Package Price only if we actually sold packages */}
                                                 {details.pkgCount > 0 ? details.pkgPrice.toLocaleString('fa-IR', { maximumFractionDigits: 3 }) : '-'}
                                             </td>
 
                                             {/* Unit Price (Fee Adad) */}
                                             <td className="p-2 text-center border border-slate-300 text-xs md:text-sm">
-                                                {/* Show Unit Price only if we actually sold separate units */}
                                                 {details.unitCount > 0 ? details.unitPrice.toLocaleString('fa-IR', { maximumFractionDigits: 3 }) : '-'}
                                             </td>
 
@@ -239,14 +245,21 @@ const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ invoice, onClose 
                         </table>
                     </div>
                     <div className="mt-4 pt-2 text-left space-y-1 text-sm">
-                        <div className="flex justify-between px-2">
-                            <span className="font-semibold text-slate-600">جمع کل:</span>
-                            <span>{formatCurrency(invoice.subtotal, storeSettings)}</span>
-                        </div>
-                         <div className="flex justify-between px-2 text-green-600">
-                            <span className="font-semibold">مجموع تخفیف:</span>
-                            <span>{formatCurrency(invoice.totalDiscount, storeSettings)}</span>
-                        </div>
+                        {/* We hide the Subtotal/Discount rows if the discount is negative (surcharge), 
+                            because the table items already reflect the higher price */}
+                        {invoice.totalDiscount > 0 ? (
+                            <>
+                                <div className="flex justify-between px-2">
+                                    <span className="font-semibold text-slate-600">جمع کل:</span>
+                                    <span>{formatCurrency(invoice.subtotal, storeSettings)}</span>
+                                </div>
+                                <div className="flex justify-between px-2 text-green-600">
+                                    <span className="font-semibold">مجموع تخفیف:</span>
+                                    <span>{formatCurrency(invoice.totalDiscount, storeSettings)}</span>
+                                </div>
+                            </>
+                        ) : null}
+                        
                         <div className="flex justify-between text-xl font-bold border-t border-black pt-2 mt-2 px-2 bg-slate-100 rounded">
                             <span>مبلغ نهایی:</span>
                             <span className="text-blue-700">{formatCurrency(invoice.totalAmount, storeSettings)}</span>

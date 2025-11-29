@@ -88,14 +88,21 @@ const Dashboard: React.FC = () => {
             return invTime >= startOfDay && invTime <= endOfDay;
         });
 
-        const sales = todayInvoices.reduce((sum, inv) => sum + inv.totalAmount, 0);
+        // Net Sales = Sales - Returns
+        const sales = todayInvoices
+            .filter(inv => inv.type === 'sale')
+            .reduce((sum, inv) => sum + inv.totalAmount, 0);
         
-        const creditInvoices = todayInvoices.filter(inv => inv.customerId);
-        const credit = creditInvoices.reduce((sum, inv) => sum + inv.totalAmount, 0);
+        const returns = todayInvoices
+            .filter(inv => inv.type === 'return')
+            .reduce((sum, inv) => sum + inv.totalAmount, 0);
+
+        const creditInvoices = todayInvoices.filter(inv => inv.customerId && inv.type === 'sale');
+        const creditSales = creditInvoices.reduce((sum, inv) => sum + inv.totalAmount, 0);
             
         return { 
-            totalSalesToday: sales, 
-            totalCreditSalesToday: credit,
+            totalSalesToday: sales - returns, 
+            totalCreditSalesToday: creditSales, // Shows credit granted today. Credit returns affect balance but usually usually we want to know how much credit we gave today.
             todayCreditInvoices: creditInvoices.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
         };
     }, [saleInvoices]);
@@ -243,15 +250,15 @@ const Dashboard: React.FC = () => {
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
         <StatCard 
-            title="مجموع فروش امروز" 
-            value={Math.round(totalSalesToday).toLocaleString('fa-IR')} 
+            title="مجموع فروش امروز (خالص)" 
+            value={totalSalesToday.toLocaleString('fa-IR', { maximumFractionDigits: 3 })} 
             description={storeSettings.currencyName} 
             color="text-blue-600" 
             icon={<POSIcon className="w-6 h-6 text-blue-600" />} 
         />
         <StatCard 
             title="فروش نسیه امروز" 
-            value={Math.round(totalCreditSalesToday).toLocaleString('fa-IR')} 
+            value={totalCreditSalesToday.toLocaleString('fa-IR', { maximumFractionDigits: 3 })} 
             description={storeSettings.currencyName} 
             color="text-orange-600" 
             icon={<UserGroupIcon className="w-6 h-6 text-orange-600" />}

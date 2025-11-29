@@ -1,14 +1,15 @@
+
 import React, { useState, useEffect } from 'react';
 import { getJalaliDate, jalaliToDate, JALALI_MONTHS } from '../utils/jalali';
 
-type FilterType = '24h' | '48h' | 'custom';
+type FilterType = 'today' | 'yesterday' | 'custom';
 
 interface DateRangeFilterProps {
     onFilterChange: (startDate: Date, endDate: Date) => void;
 }
 
 const DateRangeFilter: React.FC<DateRangeFilterProps> = ({ onFilterChange }) => {
-    const [filterType, setFilterType] = useState<FilterType>('24h');
+    const [filterType, setFilterType] = useState<FilterType>('today');
     
     const currentJalaliYear = getJalaliDate(new Date()).jy;
 
@@ -21,11 +22,15 @@ const DateRangeFilter: React.FC<DateRangeFilterProps> = ({ onFilterChange }) => 
         let end = new Date();
 
         switch (filterType) {
-            case '24h':
-                start.setTime(now.getTime() - 24 * 60 * 60 * 1000);
+            case 'today':
+                start.setHours(0, 0, 0, 0);
+                end.setHours(23, 59, 59, 999);
                 break;
-            case '48h':
-                start.setTime(now.getTime() - 48 * 60 * 60 * 1000);
+            case 'yesterday':
+                start.setDate(start.getDate() - 1);
+                start.setHours(0, 0, 0, 0);
+                end.setDate(end.getDate() - 1);
+                end.setHours(23, 59, 59, 999);
                 break;
             case 'custom':
                 start = jalaliToDate(currentJalaliYear, startDate.month, startDate.day);
@@ -44,8 +49,8 @@ const DateRangeFilter: React.FC<DateRangeFilterProps> = ({ onFilterChange }) => 
     return (
         <div className="flex flex-col sm:flex-row items-center gap-4">
             <div className="flex items-center gap-2 p-1 bg-slate-100/70 rounded-lg">
-                <button onClick={() => handleFilterClick('24h')} className={`px-3 py-1.5 rounded-md text-sm font-semibold ${filterType === '24h' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-600'}`}>۲۴ ساعت اخیر</button>
-                <button onClick={() => handleFilterClick('48h')} className={`px-3 py-1.5 rounded-md text-sm font-semibold ${filterType === '48h' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-600'}`}>۴۸ ساعت اخیر</button>
+                <button onClick={() => handleFilterClick('today')} className={`px-3 py-1.5 rounded-md text-sm font-semibold ${filterType === 'today' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-600'}`}>امروز</button>
+                <button onClick={() => handleFilterClick('yesterday')} className={`px-3 py-1.5 rounded-md text-sm font-semibold ${filterType === 'yesterday' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-600'}`}>دیروز</button>
                 <button onClick={() => handleFilterClick('custom')} className={`px-3 py-1.5 rounded-md text-sm font-semibold ${filterType === 'custom' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-600'}`}>بازه سفارشی</button>
             </div>
             {filterType === 'custom' && (

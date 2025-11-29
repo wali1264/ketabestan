@@ -25,20 +25,51 @@ const Reports: React.FC = () => {
             return invTime >= dateRange.start.getTime() && invTime <= dateRange.end.getTime();
         });
 
-        const totalSales = filteredInvoices.reduce((sum, inv) => sum + inv.subtotal, 0);
-        const totalDiscount = filteredInvoices.reduce((sum, inv) => sum + inv.totalDiscount, 0);
-        
-        // Note: Cost of Goods Sold logic removed as database doesn't support historical cost tracking yet.
-        // Consequently, Gross Profit is also omitted to prevent misleading data.
+        let grossRevenue = 0; // Total money in from sales (Total Amount)
+        let returnsAmount = 0; // Total money back from returns
+        let totalDiscountsGiven = 0; // Only positive discounts
+        let totalCOGS = 0; // Cost of Goods Sold
+
+        filteredInvoices.forEach(inv => {
+            if (inv.type === 'sale') {
+                grossRevenue += inv.totalAmount;
+                // Accumulate only positive discounts (real discounts)
+                // Surcharges (totalDiscount < 0) are effectively part of revenue, so we ignore them for the 'Discount' metric
+                if (inv.totalDiscount > 0) {
+                    totalDiscountsGiven += inv.totalDiscount;
+                }
+
+                // Calculate COGS for this invoice
+                inv.items.forEach(item => {
+                    if (item.type === 'product') {
+                        // purchasePrice is snapshot at time of sale
+                        totalCOGS += (item.purchasePrice || 0) * item.quantity;
+                    }
+                });
+
+            } else if (inv.type === 'return') {
+                returnsAmount += inv.totalAmount;
+                // Reverse COGS for returns
+                inv.items.forEach(item => {
+                    if (item.type === 'product') {
+                        totalCOGS -= (item.purchasePrice || 0) * item.quantity;
+                    }
+                });
+            }
+        });
+
+        const netSales = grossRevenue - returnsAmount;
         
         const totalExpenses = expenses.filter(exp => {
             const expTime = new Date(exp.date).getTime();
             return expTime >= dateRange.start.getTime() && expTime <= dateRange.end.getTime();
         }).reduce((sum, exp) => sum + exp.amount, 0);
 
-        // Net Income = (Sales - Discount) - Expenses
-        // This represents "Cash Flow" profit.
-        const netIncome = (totalSales - totalDiscount) - totalExpenses;
+        // Gross Profit = Net Sales - COGS
+        const grossProfit = netSales - totalCOGS;
+        
+        // Net Income = Gross Profit - Expenses
+        const netIncome = grossProfit - totalExpenses;
 
         const topProducts = filteredInvoices
             .flatMap(inv => inv.items)
@@ -46,11 +77,13 @@ const Reports: React.FC = () => {
             .reduce((acc, item) => {
                 const existing = acc.find(p => p.id === item.id);
                 const price = (item as any).finalPrice ?? (item as any).salePrice;
+                const qty = item.quantity; 
+                // Note: Not subtracting returns from top products list to keep it simple "Top Moved Items"
                 if (existing) {
-                    existing.quantity += item.quantity;
-                    existing.totalValue += item.quantity * price;
+                    existing.quantity += qty;
+                    existing.totalValue += qty * price;
                 } else {
-                    acc.push({ id: item.id, name: item.name, quantity: item.quantity, totalValue: item.quantity * price });
+                    acc.push({ id: item.id, name: item.name, quantity: qty, totalValue: qty * price });
                 }
                 return acc;
             }, [] as { id: string, name: string, quantity: number, totalValue: number }[])
@@ -58,6 +91,7 @@ const Reports: React.FC = () => {
             .slice(0, 10);
 
         const salesByEmployee = filteredInvoices
+            .filter(inv => inv.type === 'sale')
             .reduce((acc, inv) => {
                 const existing = acc.find(e => e.cashier === inv.cashier);
                 if (existing) {
@@ -69,7 +103,16 @@ const Reports: React.FC = () => {
                 return acc;
             }, [] as { cashier: string, totalSales: number, invoiceCount: number }[]);
 
-        return { totalSales, totalDiscount, totalExpenses, netIncome, topProducts, salesByEmployee };
+        return { 
+            netSales, 
+            totalDiscountsGiven, 
+            totalExpenses, 
+            netIncome, 
+            topProducts, 
+            salesByEmployee,
+            returnsAmount,
+            totalCOGS 
+        };
 
     }, [saleInvoices, expenses, dateRange]);
     
@@ -158,20 +201,27 @@ const Reports: React.FC = () => {
                 const salesReportContent = (
                     <div className="space-y-6">
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                            <SmartStatCard title="مجموع فروش" value={formatCurrency(salesData.totalSales, storeSettings)} color="text-blue-600" />
-                            <SmartStatCard title="مجموع تخفیف" value={formatCurrency(salesData.totalDiscount, storeSettings)} color="text-green-600" />
-                            <SmartStatCard title="مصارف" value={formatCurrency(salesData.totalExpenses, storeSettings)} color="text-orange-600" />
-                            <SmartStatCard title="درآمد خالص نهایی" value={formatCurrency(salesData.netIncome, storeSettings)} color="text-purple-600" />
+                            <SmartStatCard title="فروش خالص (پس از مرجوعی)" value={formatCurrency(salesData.netSales, storeSettings)} color="text-blue-600" />
+                            <SmartStatCard title="تخفیف‌های داده شده" value={formatCurrency(salesData.totalDiscountsGiven, storeSettings)} color="text-amber-600" />
+                            <SmartStatCard title="هزینه‌های ثبت شده" value={formatCurrency(salesData.totalExpenses, storeSettings)} color="text-red-500" />
+                            <SmartStatCard title="سود خالص نهایی" value={formatCurrency(salesData.netIncome, storeSettings)} color="text-green-600" />
                         </div>
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                             <div className="p-4 bg-white/70 rounded-xl shadow-md border">
-                                <h3 className="font-bold text-lg mb-2">پرفروش‌ترین محصولات</h3>
-                                <ul>{salesData.topProducts.map(p => <li key={p.id} className="flex justify-between p-2 border-b last:border-0"><span>{p.name}</span> <span className="font-semibold">{formatCurrency(p.totalValue, storeSettings)} ({p.quantity} عدد)</span></li>)}</ul>
+                                <h3 className="font-bold text-lg mb-2">جزئیات مالی</h3>
+                                <ul className="space-y-2 text-sm">
+                                    <li className="flex justify-between p-2 border-b"><span>قیمت خرید کالاها (COGS):</span> <span className="font-mono">{formatCurrency(salesData.totalCOGS, storeSettings)}</span></li>
+                                    <li className="flex justify-between p-2 border-b"><span>مبلغ مرجوعی‌ها:</span> <span className="font-mono text-red-500">{formatCurrency(salesData.returnsAmount, storeSettings)}</span></li>
+                                </ul>
                             </div>
                             <div className="p-4 bg-white/70 rounded-xl shadow-md border">
                                 <h3 className="font-bold text-lg mb-2">عملکرد فروش کارمندان</h3>
                                 <ul>{salesData.salesByEmployee.map(e => <li key={e.cashier} className="flex justify-between p-2 border-b last:border-0"><span>{e.cashier}</span> <span className="font-semibold">{formatCurrency(e.totalSales, storeSettings)} ({e.invoiceCount} فاکتور)</span></li>)}</ul>
                             </div>
+                        </div>
+                         <div className="p-4 bg-white/70 rounded-xl shadow-md border">
+                            <h3 className="font-bold text-lg mb-2">پرفروش‌ترین محصولات</h3>
+                            <ul>{salesData.topProducts.map(p => <li key={p.id} className="flex justify-between p-2 border-b last:border-0"><span>{p.name}</span> <span className="font-semibold">{formatCurrency(p.totalValue, storeSettings)} ({p.quantity} عدد)</span></li>)}</ul>
                         </div>
                     </div>
                 );
@@ -190,28 +240,30 @@ const Reports: React.FC = () => {
                         </div>
                         <div className="p-4 bg-white/70 rounded-xl shadow-md border">
                             <h3 className="font-bold text-lg mb-2">گزارش کامل موجودی</h3>
-                            <table className="min-w-full text-sm text-center">
-                                <thead className="bg-slate-100">
-                                    <tr>
-                                        <th className="p-2">نام محصول</th>
-                                        <th className="p-2">موجودی کل</th>
-                                        <th className="p-2">ارزش موجودی</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {products.map(p => {
-                                        const totalStock = p.batches.reduce((sum, b) => sum + b.stock, 0);
-                                        const stockValue = p.batches.reduce((sum, b) => sum + (b.stock * b.purchasePrice), 0);
-                                        return (
-                                            <tr key={p.id} className="border-b last:border-0">
-                                                <td className="p-2 text-right font-semibold">{p.name}</td>
-                                                <td className="p-2">{totalStock.toLocaleString('fa-IR')}</td>
-                                                <td className="p-2">{formatCurrency(stockValue, storeSettings)}</td>
-                                            </tr>
-                                        )
-                                    })}
-                                </tbody>
-                            </table>
+                            <div className="overflow-x-auto">
+                                <table className="min-w-full text-sm text-center">
+                                    <thead className="bg-slate-100">
+                                        <tr>
+                                            <th className="p-2">نام محصول</th>
+                                            <th className="p-2">موجودی کل</th>
+                                            <th className="p-2">ارزش موجودی</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {products.map(p => {
+                                            const totalStock = p.batches.reduce((sum, b) => sum + b.stock, 0);
+                                            const stockValue = p.batches.reduce((sum, b) => sum + (b.stock * b.purchasePrice), 0);
+                                            return (
+                                                <tr key={p.id} className="border-b last:border-0">
+                                                    <td className="p-2 text-right font-semibold">{p.name}</td>
+                                                    <td className="p-2">{totalStock.toLocaleString('fa-IR')}</td>
+                                                    <td className="p-2">{formatCurrency(stockValue, storeSettings)}</td>
+                                                </tr>
+                                            )
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                         <div className="p-4 bg-white/70 rounded-xl shadow-md border">
                             <h3 className="font-bold text-lg mb-2">گزارش کالاهای راکد</h3>

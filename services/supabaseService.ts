@@ -504,8 +504,8 @@ export const api = {
             product_name: item.productName,
             quantity: item.quantity,
             purchase_price: item.purchasePrice,
-            lot_number: item.lotNumber, // FIX
-            expiry_date: item.expiryDate // FIX
+            lot_number: item.lotNumber,
+            expiry_date: item.expiryDate 
         }));
         const { error: itemError } = await supabase.from('purchase_invoice_items').insert(itemsData);
         if (itemError) throw itemError;
@@ -513,7 +513,7 @@ export const api = {
         if (newBatches.length > 0) {
              const batchesData = newBatches.map(b => ({
                 id: b.id,
-                product_id: b.product_id,
+                product_id: b.productId, // CamelCase input
                 lot_number: b.lotNumber,
                 stock: b.stock,
                 purchase_price: b.purchasePrice, // Already converted to base currency
@@ -562,8 +562,8 @@ export const api = {
             product_name: item.productName,
             quantity: item.quantity,
             purchase_price: item.purchasePrice,
-            lot_number: item.lotNumber, // FIX
-            expiry_date: item.expiryDate // FIX
+            lot_number: item.lotNumber, 
+            expiry_date: item.expiryDate 
         }));
         await supabase.from('purchase_invoice_items').insert(itemsData);
 
@@ -571,7 +571,7 @@ export const api = {
         if (newBatches.length > 0) {
              const batchesData = newBatches.map(b => ({
                 id: b.id,
-                product_id: b.product_id,
+                product_id: b.productId, // CamelCase
                 lot_number: b.lotNumber,
                 stock: b.stock,
                 purchase_price: b.purchasePrice,
@@ -615,8 +615,8 @@ export const api = {
             product_name: item.productName,
             quantity: item.quantity,
             purchase_price: item.purchasePrice,
-            lot_number: item.lotNumber, // FIX
-            expiry_date: item.expiryDate // FIX
+            lot_number: item.lotNumber, 
+            expiry_date: item.expiryDate 
         }));
         await supabase.from('purchase_invoice_items').insert(itemsData);
 
@@ -784,7 +784,7 @@ export const api = {
             await supabase.from('purchase_invoices').insert(purchasesData);
 
             const purchaseItemsData = data.purchaseInvoices.flatMap(inv => inv.items.map(item => ({
-                invoice_id: inv.id, product_id: item.productId, product_name: item.productName, quantity: item.quantity, purchase_price: item.purchasePrice, lot_number: item.lotNumber, expiry_date: item.expiryDate // FIX
+                invoice_id: inv.id, product_id: item.productId, product_name: item.productName, quantity: item.quantity, purchase_price: item.purchasePrice, lot_number: item.lotNumber, expiry_date: item.expiryDate 
             })));
             if (purchaseItemsData.length > 0) await supabase.from('purchase_invoice_items').insert(purchaseItemsData);
         }

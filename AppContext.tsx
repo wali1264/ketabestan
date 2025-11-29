@@ -1,5 +1,4 @@
 
-
 import React, { createContext, useContext, ReactNode, useState, useEffect } from 'react';
 import type {
     Product, ProductBatch, SaleInvoice, PurchaseInvoice, PurchaseInvoiceItem, InvoiceItem,
@@ -788,18 +787,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         
         for(const item of invoice.items) {
             const batchId = crypto.randomUUID();
-            newBatches.push({
+            const newBatch = {
                 id: batchId,
-                product_id: item.productId,
-                lot_number: item.lotNumber,
+                productId: item.productId, // Use CamelCase for compatibility with local state & service
+                lotNumber: item.lotNumber,
                 stock: item.quantity,
-                purchase_price: item.purchasePrice, // Stored in AFN
-                purchase_date: invoice.timestamp,
-                expiry_date: item.expiryDate
-            });
+                purchasePrice: item.purchasePrice, // Stored in AFN
+                purchaseDate: invoice.timestamp,
+                expiryDate: item.expiryDate
+            };
+            newBatches.push(newBatch);
+            
             // Update local state preview
             const p = localProducts.find((p:Product) => p.id === item.productId);
-            if(p) p.batches.push(newBatches[newBatches.length-1]);
+            if(p) p.batches.push(newBatch);
         }
 
         const supplierUpdate = {

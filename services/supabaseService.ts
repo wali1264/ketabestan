@@ -67,6 +67,7 @@ const mapSaleInvoice = (data: any): SaleInvoice => ({
         price: Number(item.price), // For services
         salePrice: Number(item.price), // For products (mapped to same for simplicity in types)
         finalPrice: Number(item.final_price),
+        purchasePrice: Number(item.purchase_price), // Mapped for COGS calculation
         itemsPerPackage: 1 // Default, populated properly in UI if product exists
     })) || []
 });
@@ -337,7 +338,8 @@ export const api = {
             name: item.name,
             quantity: item.quantity,
             price: (item.type === 'product' ? (item as any).salePrice : (item as any).price),
-            final_price: (item.type === 'product' && (item as any).finalPrice !== undefined) ? (item as any).finalPrice : (item as any).salePrice
+            final_price: (item.type === 'product' && (item as any).finalPrice !== undefined) ? (item as any).finalPrice : (item as any).salePrice,
+            purchase_price: (item.type === 'product' ? (item as any).purchasePrice : 0) // Track COGS
         }));
         const { error: itemError } = await supabase.from('sale_invoice_items').insert(itemsData);
         if (itemError) throw itemError;
@@ -406,7 +408,8 @@ export const api = {
             name: item.name,
             quantity: item.quantity,
             price: (item.type === 'product' ? (item as any).salePrice : (item as any).price),
-            final_price: (item.type === 'product' && (item as any).finalPrice !== undefined) ? (item as any).finalPrice : (item as any).salePrice
+            final_price: (item.type === 'product' && (item as any).finalPrice !== undefined) ? (item as any).finalPrice : (item as any).salePrice,
+            purchase_price: (item.type === 'product' ? (item as any).purchasePrice : 0) // Track COGS
         }));
         await supabase.from('sale_invoice_items').insert(itemsData);
 
@@ -452,7 +455,8 @@ export const api = {
             name: item.name,
             quantity: item.quantity,
             price: (item.type === 'product' ? (item as any).salePrice : (item as any).price),
-            final_price: 0 
+            final_price: 0,
+            purchase_price: (item.type === 'product' ? (item as any).purchasePrice : 0) // Track COGS for reversal
         }));
         await supabase.from('sale_invoice_items').insert(itemsData);
 
@@ -772,7 +776,8 @@ export const api = {
             const saleItemsData = data.saleInvoices.flatMap(inv => inv.items.map(item => ({
                 invoice_id: inv.id, item_id: item.id, type: item.type, name: item.name, quantity: item.quantity, 
                 price: (item.type === 'product' ? (item as any).salePrice : (item as any).price),
-                final_price: (item.type === 'product' && (item as any).finalPrice !== undefined) ? (item as any).finalPrice : (item as any).salePrice
+                final_price: (item.type === 'product' && (item as any).finalPrice !== undefined) ? (item as any).finalPrice : (item as any).salePrice,
+                purchase_price: (item.type === 'product' ? (item as any).purchasePrice : 0) // Include during restore
             })));
             if (saleItemsData.length > 0) await supabase.from('sale_invoice_items').insert(saleItemsData);
         }

@@ -124,18 +124,18 @@ const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ invoice, onClose 
 
     return (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white p-8 rounded-lg shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+            <div className="bg-white p-4 md:p-6 print:p-8 rounded-lg shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
                 <div id="print-modal-content" className="text-gray-900 flex-grow flex flex-col min-h-0">
-                    <div className="text-center mb-6 border-b pb-4">
-                        <h1 className="text-3xl font-extrabold text-blue-600">{storeSettings.storeName}</h1>
-                        <p className="text-sm text-slate-500">{storeSettings.address}</p>
-                        <p className="text-sm text-slate-500">تلفن: {storeSettings.phone}</p>
-                        <p className="text-lg text-slate-800 mt-2 font-bold bg-slate-100 inline-block px-4 py-1 rounded-full border">فاکتور فروش</p>
+                    <div className="text-center mb-2 pb-2 print:mb-6 print:pb-4 border-b">
+                        <h1 className="text-xl print:text-3xl font-extrabold text-blue-600">{storeSettings.storeName}</h1>
+                        <p className="text-xs print:text-sm text-slate-500">{storeSettings.address}</p>
+                        <p className="text-xs print:text-sm text-slate-500">تلفن: {storeSettings.phone}</p>
+                        <p className="text-sm print:text-lg text-slate-800 mt-1 print:mt-2 font-bold bg-slate-100 inline-block px-4 py-1 rounded-full border">فاکتور فروش</p>
                     </div>
                     
-                    <div className="flex justify-between text-sm mb-4 bg-slate-50 p-3 rounded-lg border">
-                        <div className="space-y-1 w-1/2">
-                            <div className="text-md border-b border-slate-300 pb-1 mb-1 flex items-center flex-wrap gap-2 min-h-[30px]">
+                    <div className="flex justify-between text-xs print:text-sm mb-2 print:mb-4 bg-slate-50 p-2 print:p-3 rounded-lg border">
+                        <div className="space-y-0.5 print:space-y-1 w-1/2">
+                            <div className="text-sm print:text-md border-b border-slate-300 pb-1 mb-1 flex items-center flex-wrap gap-2 min-h-[24px] print:min-h-[30px]">
                                 <strong>نام مشتری:</strong> 
                                 {isEditingName ? (
                                     <div className="flex items-center gap-1 no-print">
@@ -153,7 +153,7 @@ const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ invoice, onClose 
                                     </div>
                                 ) : (
                                     <div className="flex items-center gap-2 group">
-                                        <span className="font-bold text-lg text-blue-800">
+                                        <span className="font-bold text-base print:text-lg text-blue-800">
                                             {customCustomerName || 'مشتری گذری'}
                                         </span>
                                         <button 
@@ -169,27 +169,27 @@ const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ invoice, onClose 
                             <p><strong>شماره فاکتور:</strong> <span className="font-mono font-bold">{invoice.id}</span></p>
                             <p><strong>فروشنده:</strong> {invoice.cashier}</p>
                         </div>
-                        <div className="text-left space-y-1">
+                        <div className="text-left space-y-0.5 print:space-y-1">
                             <p><strong>تاریخ:</strong> {new Date(invoice.timestamp).toLocaleDateString('fa-IR')}</p>
                             <p><strong>ساعت:</strong> {new Date(invoice.timestamp).toLocaleTimeString('fa-IR')}</p>
                         </div>
                     </div>
 
                     <div className="flex-grow overflow-y-auto border-t border-b min-h-0">
-                        <table className="min-w-full text-sm border-collapse">
+                        <table className="min-w-full text-xs print:text-sm border-collapse">
                             <thead className="bg-slate-100 sticky top-0">
                                 <tr>
-                                    <th rowSpan={2} className="p-2 text-center font-bold border border-slate-400 w-10">#</th>
-                                    <th rowSpan={2} className="p-2 text-right font-bold border border-slate-400">شرح کالا</th>
-                                    <th colSpan={2} className="p-2 text-center font-bold border border-slate-400 bg-blue-50 text-blue-900">تعداد (مقدار)</th>
-                                    <th colSpan={2} className="p-2 text-center font-bold border border-slate-400">قیمت (فی)</th>
-                                    <th rowSpan={2} className="p-2 text-center font-bold border border-slate-400 w-24">قیمت کل</th>
+                                    <th rowSpan={2} className="p-1 print:p-2 text-center font-bold border border-slate-400 w-8 print:w-10">#</th>
+                                    <th rowSpan={2} className="p-1 print:p-2 text-right font-bold border border-slate-400">شرح کالا</th>
+                                    <th colSpan={2} className="p-1 print:p-2 text-center font-bold border border-slate-400 bg-blue-50 text-blue-900">تعداد (مقدار)</th>
+                                    <th colSpan={2} className="p-1 print:p-2 text-center font-bold border border-slate-400">قیمت (فی)</th>
+                                    <th rowSpan={2} className="p-1 print:p-2 text-center font-bold border border-slate-400 w-20 print:w-24">قیمت کل</th>
                                 </tr>
                                 <tr>
-                                    <th className="p-1 text-center font-bold border border-slate-400 bg-blue-50 text-xs w-16">بسته</th>
-                                    <th className="p-1 text-center font-bold border border-slate-400 bg-blue-50 text-xs w-16">عدد</th>
-                                    <th className="p-1 text-center font-bold border border-slate-400 text-xs w-20">فی بسته</th>
-                                    <th className="p-1 text-center font-bold border border-slate-400 text-xs w-20">فی عدد</th>
+                                    <th className="p-1 text-center font-bold border border-slate-400 bg-blue-50 w-12 print:w-16">بسته</th>
+                                    <th className="p-1 text-center font-bold border border-slate-400 bg-blue-50 w-12 print:w-16">عدد</th>
+                                    <th className="p-1 text-center font-bold border border-slate-400 w-16 print:w-20">فی بسته</th>
+                                    <th className="p-1 text-center font-bold border border-slate-400 w-16 print:w-20">فی عدد</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -198,8 +198,8 @@ const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ invoice, onClose 
                                     
                                     return (
                                         <tr key={`${item.id}-${item.type}`} className="border-b border-slate-300 hover:bg-slate-50">
-                                            <td className="p-2 text-center border border-slate-300 font-mono text-slate-500">{index + 1}</td>
-                                            <td className="p-2 text-right border border-slate-300">
+                                            <td className="p-1 print:p-2 text-center border border-slate-300 font-mono text-slate-500">{index + 1}</td>
+                                            <td className="p-1 print:p-2 text-right border border-slate-300">
                                                 <p className="font-semibold text-slate-800">{item.name}</p>
                                                 {/* Only show discount tag if it's a real discount, NOT surcharge */}
                                                 {item.type === 'product' && (item as any).finalPrice !== undefined && (item as any).finalPrice < (item as any).salePrice && (
@@ -215,27 +215,27 @@ const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ invoice, onClose 
                                             </td>
                                             
                                             {/* Packages Count */}
-                                            <td className="p-2 text-center border border-slate-300 font-bold bg-blue-50/30">
+                                            <td className="p-1 print:p-2 text-center border border-slate-300 font-bold bg-blue-50/30">
                                                 {details.pkgCount > 0 ? details.pkgCount.toLocaleString('fa-IR') : '-'}
                                             </td>
                                             
                                             {/* Units Count */}
-                                            <td className="p-2 text-center border border-slate-300 font-bold bg-blue-50/30">
+                                            <td className="p-1 print:p-2 text-center border border-slate-300 font-bold bg-blue-50/30">
                                                 {details.unitCount > 0 ? details.unitCount.toLocaleString('fa-IR') : '-'}
                                             </td>
 
                                             {/* Package Price (Fee Baste) */}
-                                            <td className="p-2 text-center border border-slate-300 text-xs md:text-sm">
+                                            <td className="p-1 print:p-2 text-center border border-slate-300">
                                                 {details.pkgCount > 0 ? details.pkgPrice.toLocaleString('fa-IR', { maximumFractionDigits: 3 }) : '-'}
                                             </td>
 
                                             {/* Unit Price (Fee Adad) */}
-                                            <td className="p-2 text-center border border-slate-300 text-xs md:text-sm">
+                                            <td className="p-1 print:p-2 text-center border border-slate-300">
                                                 {details.unitCount > 0 ? details.unitPrice.toLocaleString('fa-IR', { maximumFractionDigits: 3 }) : '-'}
                                             </td>
 
                                             {/* Total Price */}
-                                            <td className="p-2 text-center border border-slate-300 font-bold text-slate-800">
+                                            <td className="p-1 print:p-2 text-center border border-slate-300 font-bold text-slate-800">
                                                 {details.totalPrice.toLocaleString('fa-IR', { maximumFractionDigits: 3 })}
                                             </td>
                                         </tr>
@@ -244,7 +244,7 @@ const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ invoice, onClose 
                             </tbody>
                         </table>
                     </div>
-                    <div className="mt-4 pt-2 text-left space-y-1 text-sm">
+                    <div className="mt-2 pt-2 print:mt-4 text-left space-y-1 text-sm">
                         {/* We hide the Subtotal/Discount rows if the discount is negative (surcharge), 
                             because the table items already reflect the higher price */}
                         {invoice.totalDiscount > 0 ? (
@@ -266,7 +266,7 @@ const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ invoice, onClose 
                         </div>
                     </div>
                 </div>
-                <div className="flex justify-between items-center mt-6 pt-4 border-t no-print">
+                <div className="flex justify-between items-center mt-4 print:mt-6 pt-2 print:pt-4 border-t no-print">
                     <button 
                         onClick={() => setIsEditingName(true)} 
                         className="flex items-center gap-2 px-4 py-3 rounded-lg bg-yellow-100 text-yellow-800 hover:bg-yellow-200 transition-colors font-semibold"

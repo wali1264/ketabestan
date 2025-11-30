@@ -665,7 +665,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setState(prev => ({
             ...prev,
             editingSaleInvoiceId: invoiceId,
-            cart: invoice.items.map(i => ({ ...i, type: i.type as 'product' | 'service' })),
+            cart: invoice.items.map(i => ({ ...i } as CartItem)),
         }));
         return { success: true, message: "فاکتور جهت ویرایش بارگذاری شد.", customerId: invoice.customerId };
     };

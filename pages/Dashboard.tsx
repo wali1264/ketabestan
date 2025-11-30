@@ -1,9 +1,8 @@
-
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import type { Product, ActivityLog } from '../types';
+import type { Product, ActivityLog, InvoiceItem } from '../types';
 import { useAppContext } from '../AppContext';
-import { POSIcon, InventoryIcon, PurchaseIcon, WarningIcon, BellIcon, UserGroupIcon, EyeIcon, XIcon } from '../components/icons';
-import { formatCurrency } from '../utils/formatters';
+import { POSIcon, InventoryIcon, PurchaseIcon, WarningIcon, BellIcon, UserGroupIcon, EyeIcon, XIcon, ChevronDownIcon } from '../components/icons';
+import { formatCurrency, formatStockToPackagesAndUnits } from '../utils/formatters';
 import DateRangeFilter from '../components/DateRangeFilter';
 import ActivityDetailModal from '../components/ActivityDetailModal';
 
@@ -62,6 +61,7 @@ const Dashboard: React.FC = () => {
     const alertsRef = useRef<HTMLDivElement>(null);
     const [viewingActivity, setViewingActivity] = useState<ActivityLog | null>(null);
     const [isCreditDetailsOpen, setIsCreditDetailsOpen] = useState(false);
+    const [expandedInvoiceIds, setExpandedInvoiceIds] = useState<Set<string>>(new Set());
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -140,6 +140,16 @@ const Dashboard: React.FC = () => {
         });
     }, [activities, dateRange]);
 
+    const toggleInvoiceDetails = (id: string) => {
+        const newSet = new Set(expandedInvoiceIds);
+        if (newSet.has(id)) {
+            newSet.delete(id);
+        } else {
+            newSet.add(id);
+        }
+        setExpandedInvoiceIds(newSet);
+    };
+
 
   return (
     <div className="p-4 md:p-8">
@@ -161,16 +171,56 @@ const Dashboard: React.FC = () => {
                 <div className="flex-grow overflow-y-auto p-4 space-y-3">
                     {todayCreditInvoices.length > 0 ? todayCreditInvoices.map(inv => {
                         const customer = customers.find(c => c.id === inv.customerId);
+                        const isExpanded = expandedInvoiceIds.has(inv.id);
                         return (
-                            <div key={inv.id} className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex flex-col gap-2 hover:border-blue-300 transition-colors">
-                                <div className="flex justify-between items-start">
-                                    <p className="font-bold text-slate-800 text-lg">{customer?.name || 'مشتری نامشخص'}</p>
-                                    <span className="font-bold text-orange-600 bg-orange-50 px-2 py-0.5 rounded-lg border border-orange-100">{formatCurrency(inv.totalAmount, storeSettings)}</span>
+                            <div key={inv.id} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden transition-all duration-200 hover:border-blue-300">
+                                <div 
+                                    onClick={() => toggleInvoiceDetails(inv.id)}
+                                    className="p-3 cursor-pointer hover:bg-slate-50 flex flex-col gap-2"
+                                >
+                                    <div className="flex justify-between items-start">
+                                        <div className="flex items-center gap-2">
+                                            <ChevronDownIcon className={`w-5 h-5 text-slate-400 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} />
+                                            <p className="font-bold text-slate-800 text-lg">{customer?.name || 'مشتری نامشخص'}</p>
+                                        </div>
+                                        <span className="font-bold text-orange-600 bg-orange-50 px-2 py-0.5 rounded-lg border border-orange-100">{formatCurrency(inv.totalAmount, storeSettings)}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-xs text-slate-500 border-t border-dashed border-slate-200 pt-2 mt-1">
+                                        <span>ثبت کننده: <span className="font-semibold text-slate-700">{inv.cashier}</span></span>
+                                        <span>{new Date(inv.timestamp).toLocaleTimeString('fa-IR', {hour: '2-digit', minute:'2-digit'})}</span>
+                                    </div>
                                 </div>
-                                <div className="flex justify-between items-center text-xs text-slate-500 border-t border-dashed border-slate-200 pt-2 mt-1">
-                                    <span>ثبت کننده: <span className="font-semibold text-slate-700">{inv.cashier}</span></span>
-                                    <span>{new Date(inv.timestamp).toLocaleTimeString('fa-IR', {hour: '2-digit', minute:'2-digit'})}</span>
-                                </div>
+                                
+                                {/* Expanded Details */}
+                                {isExpanded && (
+                                    <div className="bg-slate-50 border-t border-slate-100 p-3 text-sm animate-fade-in">
+                                        <style>{`@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } } .animate-fade-in { animation: fade-in 0.2s ease-out forwards; }`}</style>
+                                        <p className="text-xs font-bold text-slate-500 mb-2">اقلام فاکتور:</p>
+                                        <ul className="space-y-2">
+                                            {inv.items.map((item, idx) => {
+                                                const price = item.type === 'product'
+                                                    ? (item.finalPrice ?? item.salePrice)
+                                                    : item.price;
+                                                const total = price * item.quantity;
+                                                
+                                                // Handle package display if it's a product
+                                                const qtyDisplay = item.type === 'product'
+                                                    ? formatStockToPackagesAndUnits(item.quantity, (item as InvoiceItem).itemsPerPackage || 1)
+                                                    : `${item.quantity} عدد`;
+
+                                                return (
+                                                    <li key={idx} className="flex justify-between items-center border-b border-slate-200 last:border-0 pb-2 last:pb-0">
+                                                        <span className="text-slate-700 font-medium">{item.name}</span>
+                                                        <div className="flex items-center gap-3 text-xs">
+                                                            <span className="text-slate-500 bg-white px-2 py-0.5 rounded border shadow-sm">{qtyDisplay}</span>
+                                                            <span className="font-bold text-slate-800 w-20 text-left" dir="ltr">{formatCurrency(total, storeSettings)}</span>
+                                                        </div>
+                                                    </li>
+                                                )
+                                            })}
+                                        </ul>
+                                    </div>
+                                )}
                             </div>
                         )
                     }) : (
@@ -254,7 +304,7 @@ const Dashboard: React.FC = () => {
             value={totalSalesToday.toLocaleString('fa-IR', { maximumFractionDigits: 3 })} 
             description={storeSettings.currencyName} 
             color="text-blue-600" 
-            icon={<POSIcon className="w-6 h-6 text-blue-600" />} 
+            icon={<POSIcon className="w-6 h-6 text-blue-600" />}
         />
         <StatCard 
             title="فروش نسیه امروز" 
@@ -266,50 +316,33 @@ const Dashboard: React.FC = () => {
         />
       </div>
 
-      <div className="bg-white/60 backdrop-blur-xl p-4 md:p-6 rounded-2xl shadow-lg border border-gray-200/60">
-        <div className="flex justify-between items-center mb-6 flex-wrap gap-4">
-            <h2 className="text-xl font-bold">فعالیت‌های اخیر</h2>
-             <DateRangeFilter onFilterChange={(start, end) => setDateRange({ start, end })} />
-        </div>
-        <div className="space-y-3 max-h-96 overflow-y-auto">
-            {filteredActivities.length > 0 ? filteredActivities.map(activity => {
-                // Check if this activity is related to a credit sale
-                const relatedInvoice = activity.type === 'sale' ? saleInvoices.find(i => i.id === activity.refId) : null;
-                const isCreditSale = relatedInvoice && relatedInvoice.customerId;
-
-                return (
-                    <div 
-                        key={activity.id} 
-                        onClick={() => activity.refId && setViewingActivity(activity)}
-                        className={`flex items-center justify-between p-4 rounded-xl hover:bg-white/80 transition-colors duration-200 ${activity.refId ? 'cursor-pointer' : ''}`}
-                    >
-                        <div className="flex items-center space-x-4 space-x-reverse">
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${activity.type === 'sale' ? 'bg-green-100' : activity.type === 'purchase' ? 'bg-blue-100' : 'bg-amber-100'}`}>
-                            {activity.type === 'sale' && <POSIcon className="w-5 h-5 text-green-600"/>}
-                            {activity.type === 'purchase' && <PurchaseIcon className="w-5 h-5 text-blue-600"/>}
-                            {activity.type === 'inventory' && <InventoryIcon className="w-5 h-5 text-amber-600"/>}
-                            </div>
-                            <div>
-                                <p className="font-semibold text-slate-800 text-md flex items-center flex-wrap gap-2">
-                                    <span><span className="font-bold text-blue-700">{activity.user}</span> {activity.description}</span>
-                                    {isCreditSale && (
-                                        <span className="px-2 py-0.5 text-[10px] font-bold bg-indigo-100 text-indigo-700 rounded-full border border-indigo-200 flex items-center gap-1">
-                                            <UserGroupIcon className="w-3 h-3" />
-                                            نسیه
-                                        </span>
-                                    )}
-                                </p>
-                                <p className="text-sm text-slate-500">{new Date(activity.timestamp).toLocaleString('fa-IR')}</p>
-                            </div>
-                        </div>
-                    </div>
-                );
-            }) : (
-                 <div className="text-center p-8">
-                    <p className="text-slate-500 text-lg">در بازه زمانی انتخاب شده، فعالیتی ثبت نشده است.</p>
-                </div>
-            )}
-        </div>
+      <div className="bg-white/60 backdrop-blur-xl p-6 rounded-2xl shadow-lg border border-gray-200/60">
+          <div className="flex justify-between items-center mb-4">
+              <h3 className="font-bold text-slate-800 text-xl">آخرین فعالیت‌ها</h3>
+              <DateRangeFilter onFilterChange={(start, end) => setDateRange({ start, end })} />
+          </div>
+          
+          <div className="space-y-3 max-h-96 overflow-y-auto">
+              {filteredActivities.length > 0 ? (
+                  filteredActivities.map(activity => (
+                      <div key={activity.id} onClick={() => setViewingActivity(activity)} className="flex items-center justify-between p-3 bg-white/70 rounded-lg border border-gray-100 hover:border-blue-300 hover:bg-blue-50/50 cursor-pointer transition-all">
+                          <div>
+                              <p className="font-semibold text-slate-700">{activity.description}</p>
+                              <div className="flex items-center gap-2 mt-1 text-xs text-slate-500">
+                                  <span>{new Date(activity.timestamp).toLocaleString('fa-IR')}</span>
+                                  <span>•</span>
+                                  <span>{activity.user}</span>
+                              </div>
+                          </div>
+                          <EyeIcon className="w-5 h-5 text-slate-400" />
+                      </div>
+                  ))
+              ) : (
+                  <div className="text-center py-8 text-slate-500">
+                      <p>در این بازه زمانی فعالیتی ثبت نشده است.</p>
+                  </div>
+              )}
+          </div>
       </div>
     </div>
   );

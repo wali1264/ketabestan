@@ -368,7 +368,7 @@ const ProductModal: React.FC<ProductModalProps> = ({ product, onClose, onSave })
                     </div>
                 )}
 
-                <form ref={formRef} onSubmit={handleSubmit} onFocusCapture={(e) => { activeFieldRef.current = e.target as HTMLInputElement; }} className="space-y-5 mt-6 max-h-[70vh] overflow-y-auto pr-2">
+                <form ref={formRef} onSubmit={handleSubmit} onFocusCapture={(e) => { activeFieldRef.current = e.target as unknown as HTMLInputElement; }} className="space-y-5 mt-6 max-h-[70vh] overflow-y-auto pr-2">
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                         <FormInput label="نام محصول" id="name" name="name" type="text" value={formData.name} onChange={handleInputChange} onInput={handleInputChange} placeholder="مثال: خودکار آبی بیک" required error={errors.name} onKeyDown={handleKeyDown} />
                         <FormInput label="شماره لات اولیه" id="lotNumber" name="lotNumber" type="text" value={formData.lotNumber} onChange={handleInputChange} onInput={handleInputChange} placeholder="مثال: L-12345" required error={errors.lotNumber} onKeyDown={handleKeyDown} disabled={!!product} />

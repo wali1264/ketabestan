@@ -1,4 +1,5 @@
 
+
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import type { InvoiceItem, Product, SaleInvoice, SpeechRecognition, SpeechRecognitionEvent, SpeechRecognitionErrorEvent, Customer, SalesMemoImage, Service, CartItem } from '../types';
 import { useAppContext } from '../AppContext';
@@ -144,7 +145,8 @@ const CartSide: React.FC<any> = ({
     editingSaleInvoiceId, handleCancelEdit, updateQuantity, removeFromCart, editingPriceItemId,
     setEditingPriceItemId, updateCartItemFinalPrice, hasPermission, selectedCustomerId,
     setSelectedCustomerId, customers, totalAmount, completeSale, setInvoiceDateRange,
-    handlePrintInvoice, handleEditInvoice, storeSettings, setMobileView, addToCart, handleOpenReturnModal
+    handlePrintInvoice, handleEditInvoice, storeSettings, setMobileView, addToCart, handleOpenReturnModal,
+    isProcessing // NEW PROP
 }) => {
     
     // Logic for mobile footer removed from here and moved to parent POS component for unified handling
@@ -231,8 +233,12 @@ const CartSide: React.FC<any> = ({
                         <span className="text-lg font-bold text-slate-500">مبلغ کل:</span>
                         <span className="text-2xl font-extrabold text-blue-700">{formatCurrency(totalAmount, storeSettings)}</span>
                     </div>
-                    <button onClick={completeSale} className="w-full p-4 bg-blue-600 text-white font-bold text-lg rounded-xl shadow-lg hover:shadow-xl hover:bg-blue-700 transition-all duration-300 transform btn-primary disabled:bg-gray-400 disabled:shadow-none" disabled={cart.length === 0 || !hasPermission('pos:create_invoice')}>
-                         {editingSaleInvoiceId ? 'بروزرسانی' : 'ثبت فاکتور'}
+                    <button 
+                        onClick={completeSale} 
+                        className="w-full p-4 bg-blue-600 text-white font-bold text-lg rounded-xl shadow-lg hover:shadow-xl hover:bg-blue-700 transition-all duration-300 transform btn-primary disabled:bg-gray-400 disabled:shadow-none disabled:cursor-wait" 
+                        disabled={cart.length === 0 || !hasPermission('pos:create_invoice') || isProcessing}
+                    >
+                         {isProcessing ? 'در حال ثبت...' : (editingSaleInvoiceId ? 'بروزرسانی' : 'ثبت فاکتور')}
                     </button>
                 </div>
             </div>
@@ -393,6 +399,9 @@ const POS: React.FC = () => {
     const [returnModalInvoice, setReturnModalInvoice] = useState<SaleInvoice | null>(null);
     const shouldRestartRecognition = useRef(false);
     const [isMobileCustomerMenuOpen, setIsMobileCustomerMenuOpen] = useState(false);
+    
+    // NEW: Processing State for preventing double clicks / race conditions
+    const [isProcessing, setIsProcessing] = useState(false);
 
 
     useEffect(() => { loadMemoImages(); }, []);
@@ -557,21 +566,31 @@ const POS: React.FC = () => {
         return total + price * item.quantity;
     }, 0);
 
-    const completeSale = () => {
+    const completeSale = async () => {
+        if (isProcessing) return; // Prevent double submission
         if (!currentUser) {
             showToast("خطا: کاربر فعلی مشخص نیست.");
             return;
         }
-        const result = context.completeSale(currentUser.username, selectedCustomerId || undefined);
-        showToast(result.message);
+        
+        setIsProcessing(true);
+        try {
+            const result = await context.completeSale(currentUser.username, selectedCustomerId || undefined);
+            showToast(result.message);
 
-        if (result.success && result.invoice) {
-            if (!context.editingSaleInvoiceId) {
-                setInvoiceToPrint(result.invoice);
+            if (result.success && result.invoice) {
+                if (!context.editingSaleInvoiceId) {
+                    setInvoiceToPrint(result.invoice);
+                }
+                setActiveTab('invoices');
+                setSelectedCustomerId('');
+                setMobileView('cart');
             }
-            setActiveTab('invoices');
-            setSelectedCustomerId('');
-            setMobileView('cart');
+        } catch (e) {
+            console.error(e);
+            showToast("خطای غیرمنتظره در ثبت فاکتور.");
+        } finally {
+            setIsProcessing(false);
         }
     }
 
@@ -691,7 +710,8 @@ const POS: React.FC = () => {
                          removeFromCart: contextRemoveFromCart, editingPriceItemId,
                          setEditingPriceItemId, updateCartItemFinalPrice: contextUpdateCartItemFinalPrice, hasPermission: context.hasPermission, 
                          selectedCustomerId, setSelectedCustomerId, customers, totalAmount, completeSale, setInvoiceDateRange,
-                         handlePrintInvoice, handleEditInvoice, storeSettings, setMobileView, addToCart, handleOpenReturnModal
+                         handlePrintInvoice, handleEditInvoice, storeSettings, setMobileView, addToCart, handleOpenReturnModal,
+                         isProcessing
                        }}
                     />
                 </div>
@@ -723,11 +743,11 @@ const POS: React.FC = () => {
                             {/* Checkout Button */}
                             <button 
                                 onClick={completeSale} 
-                                className="flex-grow h-10 bg-blue-600 text-white rounded-lg shadow-md active:scale-95 transition-transform flex items-center justify-center gap-1 px-2 disabled:bg-gray-400"
-                                disabled={cart.length === 0 || !context.hasPermission('pos:create_invoice')}
+                                className="flex-grow h-10 bg-blue-600 text-white rounded-lg shadow-md active:scale-95 transition-transform flex items-center justify-center gap-1 px-2 disabled:bg-gray-400 disabled:cursor-wait"
+                                disabled={cart.length === 0 || !context.hasPermission('pos:create_invoice') || isProcessing}
                             >
                                 <CheckIcon className="w-5 h-5" />
-                                <span className="font-bold text-sm">{context.editingSaleInvoiceId ? 'ویرایش' : 'ثبت'}</span>
+                                <span className="font-bold text-sm">{isProcessing ? '...' : (context.editingSaleInvoiceId ? 'ویرایش' : 'ثبت')}</span>
                             </button>
                         </div>
                      </div>

@@ -1,4 +1,5 @@
 
+
 import React, { createContext, useContext, ReactNode, useState, useEffect } from 'react';
 import type {
     Product, ProductBatch, SaleInvoice, PurchaseInvoice, PurchaseInvoiceItem, InvoiceItem,
@@ -41,7 +42,7 @@ interface AppContextType extends AppState {
     updateCartItemQuantity: (itemId: string, itemType: 'product' | 'service', newQuantity: number) => { success: boolean; message: string };
     updateCartItemFinalPrice: (itemId: string, itemType: 'product' | 'service', finalPrice: number) => void;
     removeFromCart: (itemId: string, itemType: 'product' | 'service') => void;
-    completeSale: (cashier: string, customerId?: string) => { success: boolean; invoice?: SaleInvoice; message: string };
+    completeSale: (cashier: string, customerId?: string) => Promise<{ success: boolean; invoice?: SaleInvoice; message: string }>;
     beginEditSale: (invoiceId: string) => { success: boolean; message: string; customerId?: string; };
     cancelEditSale: () => void;
     addSaleReturn: (originalInvoiceId: string, returnItems: { id: string; type: 'product' | 'service'; quantity: number }[], cashier: string) => { success: boolean, message: string };
@@ -498,7 +499,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         return { final: item.price, original: item.price };
     };
     
-    const completeSale = (cashier: string, customerId?: string): { success: boolean; invoice?: SaleInvoice; message: string } => {
+    // CRITICAL FIX: Made async to wait for DB confirmation before returning success
+    const completeSale = async (cashier: string, customerId?: string): Promise<{ success: boolean; invoice?: SaleInvoice; message: string }> => {
         if (!checkOnline()) return { success: false, message: '⚠️ شما آفلاین هستید. امکان ثبت فاکتور وجود ندارد.' };
         
         const { cart, products, storeSettings, editingSaleInvoiceId, customers, saleInvoices } = state;
@@ -554,15 +556,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             id: invoiceId, 
             type: 'sale', 
             items: saleItemsWithPurchasePrice, 
-            subtotal: newSubtotal, // Removed Math.round
-            totalAmount: newTotalAmount, // Removed Math.round
-            totalDiscount: newTotalDiscount, // Removed Math.round
+            subtotal: newSubtotal, 
+            totalAmount: newTotalAmount, 
+            totalDiscount: newTotalDiscount, 
             timestamp: editingSaleInvoiceId ? saleInvoices.find(i=>i.id===invoiceId)!.timestamp : new Date().toISOString(), 
             cashier, 
             customerId, 
         };
 
-        // Customer Update
+        // Customer Update Object Preparation
         let customerUpdate;
         if (customerId) {
             const customer = customers.find(c => c.id === customerId);
@@ -583,57 +585,57 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             }
         }
 
-        if (editingSaleInvoiceId) {
-            // --- EDIT MODE ---
-            const oldInvoice = saleInvoices.find(inv => inv.id === editingSaleInvoiceId)!;
-            
-            // 1. Calculate "Restores" (add back stock from old invoice items)
-            const stockRestores: {productId: string, quantity: number}[] = [];
-            oldInvoice.items.filter(i => i.type === 'product').forEach(item => {
-                stockRestores.push({ productId: item.id, quantity: item.quantity });
-            });
-            
-            // 2. Calculate "Deductions" (these are in `stockUpdates` calculated above)
-            const stockDeductions = stockUpdates.map(u => ({ batchId: u.batchId, quantity: (products.find(p => p.batches.some(b=>b.id===u.batchId))?.batches.find(b=>b.id===u.batchId)?.stock || 0) - u.newStock })); 
+        try {
+            if (editingSaleInvoiceId) {
+                // --- EDIT MODE ---
+                const oldInvoice = saleInvoices.find(inv => inv.id === editingSaleInvoiceId)!;
+                
+                const stockRestores: {productId: string, quantity: number}[] = [];
+                oldInvoice.items.filter(i => i.type === 'product').forEach(item => {
+                    stockRestores.push({ productId: item.id, quantity: item.quantity });
+                });
+                
+                const stockDeductions = stockUpdates.map(u => ({ batchId: u.batchId, quantity: (products.find(p => p.batches.some(b=>b.id===u.batchId))?.batches.find(b=>b.id===u.batchId)?.stock || 0) - u.newStock })); 
 
-            // 3. Customer Update Params
-            let custUpdateParams;
-            if (customerId && oldInvoice.customerId === customerId) {
-                const customer = customers.find(c => c.id === customerId)!;
-                custUpdateParams = {
-                    id: customerId,
-                    oldAmount: oldInvoice.totalAmount,
-                    newAmount: finalInvoice.totalAmount,
-                    transactionDescription: `فاکتور فروش #${finalInvoice.id} (ویرایش شده)`
-                };
-            } else if (customerId) {
-                 custUpdateParams = {
-                    id: customerId,
-                    oldAmount: 0, 
-                    newAmount: finalInvoice.totalAmount,
-                    transactionDescription: `فاکتور فروش #${finalInvoice.id}`
-                };
-            }
-            
-            api.updateSale(invoiceId, finalInvoice, stockRestores, stockUpdates.map(u => {
-                 const p = products.find(p => p.batches.some(b => b.id === u.batchId));
-                 const b = p?.batches.find(b => b.id === u.batchId);
-                 return { batchId: u.batchId, quantity: b ? b.stock - u.newStock : 0 };
-            }), custUpdateParams).then(() => {
-                 addActivityLocal('sale', `فاکتور فروش #${finalInvoice.id} را ویرایش کرد`, cashier, finalInvoice.id, 'saleInvoice');
-                 fetchData(); // Reload all data to be safe
-                 showToast("✅ فاکتور ویرایش شد.");
-            });
+                let custUpdateParams;
+                if (customerId && oldInvoice.customerId === customerId) {
+                    const customer = customers.find(c => c.id === customerId)!;
+                    custUpdateParams = {
+                        id: customerId,
+                        oldAmount: oldInvoice.totalAmount,
+                        newAmount: finalInvoice.totalAmount,
+                        transactionDescription: `فاکتور فروش #${finalInvoice.id} (ویرایش شده)`
+                    };
+                } else if (customerId) {
+                     custUpdateParams = {
+                        id: customerId,
+                        oldAmount: 0, 
+                        newAmount: finalInvoice.totalAmount,
+                        transactionDescription: `فاکتور فروش #${finalInvoice.id}`
+                    };
+                }
+                
+                // Await Server Confirmation
+                await api.updateSale(invoiceId, finalInvoice, stockRestores, stockUpdates.map(u => {
+                     const p = products.find(p => p.batches.some(b => b.id === u.batchId));
+                     const b = p?.batches.find(b => b.id === u.batchId);
+                     return { batchId: u.batchId, quantity: b ? b.stock - u.newStock : 0 };
+                }), custUpdateParams);
 
-            setState(prev => ({ ...prev, editingSaleInvoiceId: null, cart: [] }));
+                addActivityLocal('sale', `فاکتور فروش #${finalInvoice.id} را ویرایش کرد`, cashier, finalInvoice.id, 'saleInvoice');
+                await fetchData(); // Reload all data to be safe after edit
+                showToast("✅ فاکتور ویرایش شد.");
+                setState(prev => ({ ...prev, editingSaleInvoiceId: null, cart: [] }));
 
-        } else {
-            // --- CREATE MODE ---
-            api.createSale(finalInvoice, stockUpdates, customerUpdate).then(() => {
-                 addActivityLocal('sale', `فاکتور فروش #${finalInvoice.id} به مبلغ ${formatCurrency(finalInvoice.totalAmount, storeSettings)} ثبت کرد`, cashier, finalInvoice.id, 'saleInvoice');
+            } else {
+                // --- CREATE MODE ---
+                // Await Server Confirmation BEFORE updating local state
+                await api.createSale(finalInvoice, stockUpdates, customerUpdate);
+                
+                addActivityLocal('sale', `فاکتور فروش #${finalInvoice.id} به مبلغ ${formatCurrency(finalInvoice.totalAmount, storeSettings)} ثبت کرد`, cashier, finalInvoice.id, 'saleInvoice');
                  
-                 // Optimistic Update (Simplified)
-                 setState(prev => {
+                // Safe Optimistic Update (Since API call succeeded)
+                setState(prev => {
                      const newSaleInvoices = [finalInvoice, ...prev.saleInvoices];
                      const newProducts = updatedProducts;
                      const newCustomers = customerId ? prev.customers.map(c => c.id === customerId ? {...c, balance: c.balance + finalInvoice.totalAmount} : c) : prev.customers;
@@ -647,15 +649,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                          customerTransactions: newTransactions,
                          cart: []
                      }
-                 });
-                 showToast("✅ فاکتور با موفقیت ثبت شد.");
-            }).catch(err => {
-                console.error(err);
-                showToast("❌ خطا در ثبت فاکتور در سرور.");
-            });
-        }
+                });
+                showToast("✅ فاکتور با موفقیت ثبت شد.");
+            }
 
-        return { success: true, invoice: finalInvoice, message: 'در حال ثبت فاکتور...' };
+            return { success: true, invoice: finalInvoice, message: 'فاکتور ثبت شد.' };
+
+        } catch (err) {
+            console.error("Sale transaction failed:", err);
+            showToast("❌ خطا در ثبت فاکتور در پایگاه داده. لطفاً مجدد تلاش کنید.");
+            return { success: false, message: 'خطا در ثبت فاکتور.' };
+        }
     };
 
     const beginEditSale = (invoiceId: string) => {

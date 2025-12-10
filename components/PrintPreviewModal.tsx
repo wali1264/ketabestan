@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import type { SaleInvoice, StoreSettings, CartItem, InvoiceItem } from '../types';
 import { XIcon, EditIcon, CheckIcon } from './icons';
 import { useAppContext } from '../AppContext';
@@ -72,6 +72,44 @@ const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ invoice, onClose 
         onClose();
     };
     
+    // --- Psychological Pricing Logic ---
+    // Instead of using invoice.subtotal directly (which is mathematically pure),
+    // we calculate a "Perceived Subtotal" and "Perceived Discount".
+    // Rule 1: If Item Price Increased (Surcharge), the "Unit Price" shown is the Higher Price. No Discount shown.
+    // Rule 2: If Item Price Decreased (Discount), the "Unit Price" shown is the Original Price. Discount is calculated.
+    const { perceivedSubtotal, perceivedTotalDiscount } = useMemo(() => {
+        let sub = 0;
+        let disc = 0;
+
+        invoice.items.forEach(item => {
+            const quantity = item.quantity;
+            
+            if (item.type === 'product') {
+                const originalPrice = (item as any).salePrice;
+                const finalPrice = (item as any).finalPrice !== undefined ? (item as any).finalPrice : originalPrice;
+
+                if (finalPrice > originalPrice) {
+                    // Surcharge Case: Hide the original price. Pretend the higher price is the standard.
+                    // Contribution to Subtotal: Higher Price * Qty
+                    // Contribution to Discount: 0
+                    sub += finalPrice * quantity;
+                } else {
+                    // Discount Case (or Equal): Show original price.
+                    // Contribution to Subtotal: Original Price * Qty
+                    // Contribution to Discount: (Original - Final) * Qty
+                    sub += originalPrice * quantity;
+                    disc += (originalPrice - finalPrice) * quantity;
+                }
+            } else {
+                // Services always added as is
+                sub += item.price * quantity;
+            }
+        });
+
+        return { perceivedSubtotal: sub, perceivedTotalDiscount: disc };
+    }, [invoice.items]);
+
+
     const getItemDetails = (item: CartItem) => {
         const isService = item.type === 'service';
         // Ensure itemsPerPack is at least 1
@@ -90,9 +128,7 @@ const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ invoice, onClose 
             unitCount = totalQty % itemsPerPack;
         }
         
-        // Price calculation: Smart Display Logic
-        // If Final Price > Sale Price (Surcharge), show Final Price as the Unit Price to hide surcharge from customer.
-        // If Final Price < Sale Price (Discount), show Original Sale Price as Unit Price (and show discount later).
+        // Price display logic must match the "Perceived" logic above
         let unitPrice = 0;
         
         if (item.type === 'product') {
@@ -102,7 +138,7 @@ const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ invoice, onClose 
             if (final > originalPrice) {
                 unitPrice = final; // Show higher price as standard
             } else {
-                unitPrice = originalPrice; // Show standard price (discount will be shown at bottom)
+                unitPrice = originalPrice; // Show standard price
             }
         } else {
             unitPrice = item.price;
@@ -245,17 +281,21 @@ const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ invoice, onClose 
                         </table>
                     </div>
                     <div className="mt-2 pt-2 print:mt-4 text-left space-y-1 text-sm">
-                        {/* We hide the Subtotal/Discount rows if the discount is negative (surcharge), 
-                            because the table items already reflect the higher price */}
-                        {invoice.totalDiscount > 0 ? (
+                        {/* 
+                            Logic Updated:
+                            Use 'perceivedTotalDiscount' instead of 'invoice.totalDiscount'.
+                            This ensures that even if totalDiscount is 0 (due to surcharges cancelling out),
+                            we still show the positive discounts if they exist.
+                        */}
+                        {perceivedTotalDiscount > 0 ? (
                             <>
                                 <div className="flex justify-between px-2">
                                     <span className="font-semibold text-slate-600">جمع کل:</span>
-                                    <span>{formatCurrency(invoice.subtotal, storeSettings)}</span>
+                                    <span>{formatCurrency(perceivedSubtotal, storeSettings)}</span>
                                 </div>
                                 <div className="flex justify-between px-2 text-green-600">
                                     <span className="font-semibold">مجموع تخفیف:</span>
-                                    <span>{formatCurrency(invoice.totalDiscount, storeSettings)}</span>
+                                    <span>{formatCurrency(perceivedTotalDiscount, storeSettings)}</span>
                                 </div>
                             </>
                         ) : null}

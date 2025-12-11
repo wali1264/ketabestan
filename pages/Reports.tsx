@@ -27,31 +27,17 @@ const Reports: React.FC = () => {
 
         let grossRevenue = 0; // Total money in from sales (Total Amount)
         let returnsAmount = 0; // Total money back from returns
-        let totalDiscountsGiven = 0; // Only positive discounts (Psychological)
+        let totalDiscountsGiven = 0; // Only positive discounts
         let totalCOGS = 0; // Cost of Goods Sold
 
         filteredInvoices.forEach(inv => {
-            // Calculate Psychological Discount for this invoice
-            // Logic: Sum of (Original - Final) for items where Final < Original.
-            // Surcharges (Final > Original) are ignored/hidden.
-            let invoicePsyDiscount = 0;
-            inv.items.forEach(item => {
-                if (item.type === 'product') {
-                    const pItem = item as any;
-                    const originalPrice = pItem.salePrice || 0;
-                    const finalPrice = pItem.finalPrice !== undefined ? pItem.finalPrice : originalPrice;
-                    
-                    if (finalPrice < originalPrice) {
-                        invoicePsyDiscount += (originalPrice - finalPrice) * item.quantity;
-                    }
-                }
-            });
-
             if (inv.type === 'sale') {
                 grossRevenue += inv.totalAmount;
-                
-                // Add the calculated psychological discount
-                totalDiscountsGiven += invoicePsyDiscount;
+                // Accumulate only positive discounts (real discounts)
+                // Surcharges (totalDiscount < 0) are effectively part of revenue, so we ignore them for the 'Discount' metric
+                if (inv.totalDiscount > 0) {
+                    totalDiscountsGiven += inv.totalDiscount;
+                }
 
                 // Calculate COGS for this invoice
                 inv.items.forEach(item => {
@@ -63,11 +49,6 @@ const Reports: React.FC = () => {
 
             } else if (inv.type === 'return') {
                 returnsAmount += inv.totalAmount;
-                
-                // Deduct the psychological discount associated with the returned items
-                // This ensures the discount report remains net/real
-                totalDiscountsGiven -= invoicePsyDiscount;
-
                 // Reverse COGS for returns
                 inv.items.forEach(item => {
                     if (item.type === 'product') {

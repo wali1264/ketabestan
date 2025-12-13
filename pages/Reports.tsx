@@ -168,6 +168,32 @@ const Reports: React.FC = () => {
         return { person, transactions };
     }, [selectedAccount, customers, suppliers, customerTransactions, supplierTransactions]);
 
+    // NEW: Collections Data Logic
+    const collectionsData = useMemo(() => {
+        const filteredPayments = customerTransactions.filter(t => {
+            const tTime = new Date(t.date).getTime();
+            const inRange = tTime >= dateRange.start.getTime() && tTime <= dateRange.end.getTime();
+            return t.type === 'payment' && inRange;
+        });
+
+        const totalCollected = filteredPayments.reduce((sum, t) => sum + t.amount, 0);
+        const count = filteredPayments.length;
+
+        const details = filteredPayments.map(t => {
+            const customer = customers.find(c => c.id === t.customerId);
+            return {
+                id: t.id,
+                customerName: customer ? customer.name : 'مشتری حذف شده',
+                amount: t.amount,
+                date: t.date,
+                description: t.description
+            };
+        }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+        return { totalCollected, count, details };
+    }, [customerTransactions, dateRange, customers]);
+
+
     const openHistoryModal = () => { if(accountReportData?.person) setHistoryModalOpen(true); };
 
     // Smart Stat Card with Adaptive Typography
@@ -316,29 +342,78 @@ const Reports: React.FC = () => {
                     {employeeReportContent}
                  </div>
                 );
-            case 'accounts': return (
-                <div className="space-y-6">
-                    <div className="flex gap-4 p-4 bg-white/70 rounded-xl shadow-md border items-center">
-                        <select onChange={e => setSelectedAccount(e.target.value ? JSON.parse(e.target.value) : null)} className="p-2 border rounded-md bg-white">
-                            <option value="">-- انتخاب حساب --</option>
-                            <optgroup label="مشتریان">
-                                {customers.map(c => <option key={c.id} value={JSON.stringify({type: 'customer', id: c.id})}>{c.name}</option>)}
-                            </optgroup>
-                            <optgroup label="تأمین‌کنندگان">
-                                {suppliers.map(s => <option key={s.id} value={JSON.stringify({type: 'supplier', id: s.id})}>{s.name}</option>)}
-                            </optgroup>
-                        </select>
-                        <button onClick={openHistoryModal} disabled={!selectedAccount} className="px-4 py-2 bg-blue-600 text-white rounded-md disabled:bg-gray-400">مشاهده صورت حساب</button>
+            case 'accounts': 
+                const collectionsReportContent = (
+                    <div className="space-y-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <SmartStatCard title="مجموع وصولی" value={formatCurrency(collectionsData.totalCollected, storeSettings)} color="text-green-600" />
+                            <SmartStatCard title="تعداد پرداخت‌ها" value={`${collectionsData.count} فقره`} color="text-blue-600" />
+                        </div>
+                        <div className="bg-white/70 rounded-xl shadow-md border overflow-hidden">
+                            <table className="min-w-full text-sm text-center">
+                                <thead className="bg-slate-100">
+                                    <tr>
+                                        <th className="p-3">نام مشتری</th>
+                                        <th className="p-3">مبلغ</th>
+                                        <th className="p-3">تاریخ و ساعت</th>
+                                        <th className="p-3">شرح</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {collectionsData.details.map(d => (
+                                        <tr key={d.id} className="border-b last:border-0 hover:bg-slate-50">
+                                            <td className="p-3 font-semibold">{d.customerName}</td>
+                                            <td className="p-3 text-green-700 font-bold" dir="ltr">{formatCurrency(d.amount, storeSettings)}</td>
+                                            <td className="p-3">{new Date(d.date).toLocaleString('fa-IR')}</td>
+                                            <td className="p-3 text-slate-500">{d.description}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                            {collectionsData.count === 0 && <p className="text-center p-6 text-slate-500">موردی یافت نشد.</p>}
+                        </div>
                     </div>
-                    {historyModalOpen && accountReportData?.person && (
-                        <TransactionHistoryModal 
-                            person={accountReportData.person}
-                            transactions={accountReportData.transactions as any}
-                            type={selectedAccount!.type}
-                            onClose={() => setHistoryModalOpen(false)}
-                            onReprint={() => {}}
-                        />
-                    )}
+                );
+
+                return (
+                <div className="space-y-8">
+                    <div>
+                        <div className="flex justify-between items-end mb-4">
+                           <div>
+                               <h3 className="text-xl font-bold text-slate-800">گزارش وصول مطالبات (از مشتریان)</h3>
+                               <p className="text-sm text-slate-500 mt-1">لیست مبالغ دریافت شده از مشتریان بابت بدهی‌های قبلی</p>
+                           </div>
+                           <button onClick={() => handlePrintReport('گزارش وصول مطالبات', collectionsReportContent)} className="flex items-center gap-2 px-4 py-2 bg-slate-200 rounded-md text-slate-700 hover:bg-slate-300 transition-colors"><PrintIcon /> چاپ گزارش</button>
+                        </div>
+                        {collectionsReportContent}
+                    </div>
+
+                    <div className="border-t border-dashed border-gray-300 my-6"></div>
+
+                    <div>
+                        <h3 className="text-xl font-bold text-slate-800 mb-4">بررسی حساب اشخاص (معین)</h3>
+                        <div className="flex flex-col md:flex-row gap-4 p-4 bg-white/70 rounded-xl shadow-md border items-center">
+                            <select onChange={e => setSelectedAccount(e.target.value ? JSON.parse(e.target.value) : null)} className="p-3 border rounded-md bg-white w-full md:w-1/2">
+                                <option value="">-- انتخاب حساب --</option>
+                                <optgroup label="مشتریان">
+                                    {customers.map(c => <option key={c.id} value={JSON.stringify({type: 'customer', id: c.id})}>{c.name}</option>)}
+                                </optgroup>
+                                <optgroup label="تأمین‌کنندگان">
+                                    {suppliers.map(s => <option key={s.id} value={JSON.stringify({type: 'supplier', id: s.id})}>{s.name}</option>)}
+                                </optgroup>
+                            </select>
+                            <button onClick={openHistoryModal} disabled={!selectedAccount} className="w-full md:w-auto px-6 py-3 bg-blue-600 text-white rounded-md disabled:bg-gray-400 font-semibold shadow-lg btn-primary transition-all">مشاهده صورت حساب</button>
+                        </div>
+                        {historyModalOpen && accountReportData?.person && (
+                            <TransactionHistoryModal 
+                                person={accountReportData.person}
+                                transactions={accountReportData.transactions as any}
+                                type={selectedAccount!.type}
+                                onClose={() => setHistoryModalOpen(false)}
+                                onReprint={() => {}}
+                            />
+                        )}
+                    </div>
                 </div>
             );
             default: return null;
@@ -368,7 +443,7 @@ const Reports: React.FC = () => {
                     <button onClick={() => setActiveTab('sales')} className={`py-3 px-6 font-bold text-lg rounded-lg ${activeTab === 'sales' ? 'bg-white shadow-md text-blue-600' : 'text-slate-600'}`}>فروش و سودآوری</button>
                     <button onClick={() => setActiveTab('inventory')} className={`py-3 px-6 font-bold text-lg rounded-lg ${activeTab === 'inventory' ? 'bg-white shadow-md text-blue-600' : 'text-slate-600'}`}>انبار و موجودی</button>
                     <button onClick={() => setActiveTab('employees')} className={`py-3 px-6 font-bold text-lg rounded-lg ${activeTab === 'employees' ? 'bg-white shadow-md text-blue-600' : 'text-slate-600'}`}>فعالیت کارمندان</button>
-                    <button onClick={() => setActiveTab('accounts')} className={`py-3 px-6 font-bold text-lg rounded-lg ${activeTab === 'accounts' ? 'bg-white shadow-md text-blue-600' : 'text-slate-600'}`}>حساب‌ها</button>
+                    <button onClick={() => setActiveTab('accounts')} className={`py-3 px-6 font-bold text-lg rounded-lg ${activeTab === 'accounts' ? 'bg-white shadow-md text-blue-600' : 'text-slate-600'}`}>حساب‌ها و وصولی</button>
                 </div>
                 <div className="p-6">
                     {renderContent()}

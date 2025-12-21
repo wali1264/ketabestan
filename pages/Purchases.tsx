@@ -19,18 +19,23 @@ interface PurchaseItemDraft {
     showExpiry: boolean;
 }
 
-// Return Modal Component (duplicated here for self-containment as per constraints)
-const ReturnModal: React.FC<{ invoice: PurchaseInvoice, onClose: () => void, onSubmit: (returnItems: { productId: string, quantity: number }[]) => void }> = ({ invoice, onClose, onSubmit }) => {
+// Return Modal Component
+const ReturnModal: React.FC<{ invoice: PurchaseInvoice, onClose: () => void, onSubmit: (returnItems: { productId: string, lotNumber: string, quantity: number }[]) => void }> = ({ invoice, onClose, onSubmit }) => {
     const [returnQuantities, setReturnQuantities] = useState<{[key: string]: number}>({});
 
-    const handleQuantityChange = (productId: string, quantity: number) => {
-        setReturnQuantities(prev => ({...prev, [productId]: quantity}));
+    const handleQuantityChange = (productId: string, lotNumber: string, quantity: number) => {
+        // Use a safe separator '|' instead of '-' to avoid splitting UUIDs incorrectly
+        const key = `${productId}|${lotNumber}`;
+        setReturnQuantities(prev => ({...prev, [key]: quantity}));
     };
     
     const handleSubmit = () => {
         const returnItems = Object.entries(returnQuantities)
             .filter(([, qty]) => Number(qty) > 0)
-            .map(([productId, qty]) => ({ productId, quantity: Number(qty) }));
+            .map(([key, qty]) => {
+                const [productId, lotNumber] = key.split('|');
+                return { productId, lotNumber, quantity: Number(qty) };
+            });
         onSubmit(returnItems);
     };
 
@@ -43,11 +48,14 @@ const ReturnModal: React.FC<{ invoice: PurchaseInvoice, onClose: () => void, onS
                 </div>
                 <div className="flex-grow overflow-y-auto pt-4 -mx-2 px-2">
                     <div className="space-y-3">
-                        {invoice.items.map(item => (
-                            <div key={item.productId + item.lotNumber} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border">
+                        {invoice.items.map((item, idx) => (
+                            <div key={`${item.productId}-${item.lotNumber}-${idx}`} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border">
                                 <div>
                                     <p className="font-semibold text-sm">{item.productName}</p>
-                                    <p className="text-xs text-slate-500">خریداری شده: {item.quantity}</p>
+                                    <div className="flex gap-2 items-center">
+                                        <span className="text-xs bg-blue-100 text-blue-700 px-1.5 rounded font-mono">Lot: {item.lotNumber}</span>
+                                        <span className="text-xs text-slate-500">خریداری شده: {item.quantity}</span>
+                                    </div>
                                 </div>
                                 <input 
                                     type="number" 
@@ -55,7 +63,7 @@ const ReturnModal: React.FC<{ invoice: PurchaseInvoice, onClose: () => void, onS
                                     max={item.quantity} 
                                     className="w-20 p-2 border rounded-lg text-center"
                                     placeholder="0"
-                                    onChange={(e) => handleQuantityChange(item.productId, Number(e.target.value))}
+                                    onChange={(e) => handleQuantityChange(item.productId, item.lotNumber, Number(e.target.value))}
                                 />
                             </div>
                         ))}
@@ -89,7 +97,6 @@ const Purchases: React.FC = () => {
     const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split('T')[0]);
     const [items, setItems] = useState<PurchaseItemDraft[]>([]);
     const [productSearch, setProductSearch] = useState('');
-    // New Currency States
     const [currency, setCurrency] = useState<'AFN' | 'USD'>('AFN');
     const [exchangeRate, setExchangeRate] = useState<string>('');
 
@@ -98,7 +105,7 @@ const Purchases: React.FC = () => {
     const [recognitionLang, setRecognitionLang] = useState<'fa-IR' | 'en-US'>('fa-IR');
     const recognitionRef = useRef<SpeechRecognition | null>(null);
     const activeFieldRef = useRef<{name: string, index?: number} | null>(null);
-    const numericFields = ['purchasePrice', 'lotNumber', 'exchangeRate']; // Added exchangeRate
+    const numericFields = ['purchasePrice', 'lotNumber', 'exchangeRate'];
 
     useEffect(() => {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -224,7 +231,7 @@ const Purchases: React.FC = () => {
         setReturnModalInvoice(invoice);
     };
 
-    const handleReturnSubmit = (returnItems: { productId: string; quantity: number }[]) => {
+    const handleReturnSubmit = (returnItems: { productId: string; lotNumber: string, quantity: number }[]) => {
         if (returnModalInvoice) {
             const result = addPurchaseReturn(returnModalInvoice.id, returnItems);
             showToast(result.message);
@@ -239,10 +246,6 @@ const Purchases: React.FC = () => {
     };
 
     const handleAddItem = (product: Product) => {
-        if (items.some(item => item.productId === product.id)) {
-            showToast("این محصول قبلاً به فاکتور اضافه شده است.");
-            return;
-        }
         const newItem: PurchaseItemDraft = {
             productId: product.id,
             quantity: 0,
@@ -259,7 +262,7 @@ const Purchases: React.FC = () => {
         const updatedItems = [...items];
         let processedValue = value;
         if (field === 'purchasePrice') {
-             processedValue = String(value).replace(/[^0-9.]/g, ''); // Allow decimals for USD
+             processedValue = String(value).replace(/[^0-9.]/g, ''); 
         }
         (updatedItems[index] as any)[field] = processedValue;
         setItems(updatedItems);
@@ -296,6 +299,25 @@ const Purchases: React.FC = () => {
 
 
     const handleSaveInvoice = () => {
+        if (items.length === 0) {
+            showToast("لطفاً حداقل یک کالا به فاکتور اضافه کنید.");
+            return;
+        }
+
+        // VALIDATION: Empty Lot Numbers
+        if (items.some(item => !item.lotNumber.trim())) {
+            showToast("خطا: شماره لات (سریال) برای تمامی اقلام اجباری است.");
+            return;
+        }
+
+        // VALIDATION: Duplicate Lot Numbers within the same invoice
+        const lotNumbers = items.map(i => i.lotNumber.trim());
+        const hasDuplicates = lotNumbers.some((lot, idx) => lotNumbers.indexOf(lot) !== idx);
+        if (hasDuplicates) {
+            showToast("خطا: شماره لات تکراری در اقلام فاکتور یافت شد.");
+            return;
+        }
+
         if (currency === 'USD' && (!exchangeRate || Number(exchangeRate) <= 0)) {
             showToast("لطفاً نرخ ارز را وارد کنید.");
             return;
@@ -305,7 +327,7 @@ const Purchases: React.FC = () => {
             productId: draft.productId,
             quantity: Number(draft.quantity),
             purchasePrice: Number(draft.purchasePrice),
-            lotNumber: draft.lotNumber,
+            lotNumber: draft.lotNumber.trim(),
             expiryDate: draft.expiryDate || undefined,
         }));
         
@@ -322,8 +344,10 @@ const Purchases: React.FC = () => {
             ? updatePurchaseInvoice(invoiceData)
             : addPurchaseInvoice(invoiceData);
 
-        showToast(result.message);
-        if (result.success) {
+        if (!result.success) {
+            showToast(result.message);
+        } else {
+            showToast("عملیات با موفقیت در صف ثبت قرار گرفت.");
             handleCloseModal();
         }
     };
@@ -458,7 +482,6 @@ const Purchases: React.FC = () => {
                                 <input value={invoiceDate} onChange={e => setInvoiceDate(e.target.value)} type="date" className="w-full p-3 bg-white/80 border border-gray-300 rounded-lg form-input" required />
                            </div>
 
-                           {/* CURRENCY SELECTION UI */}
                            <div className="flex items-center gap-4 mb-6 bg-blue-50 p-3 rounded-lg border border-blue-100">
                                 <span className="font-bold text-slate-700">ارز فاکتور:</span>
                                 <div className="flex items-center gap-3">
@@ -561,8 +584,11 @@ const Purchases: React.FC = () => {
                                                     <input type="text" name="purchasePrice" data-index={index} value={item.purchasePrice} onChange={e => handleItemChange(index, 'purchasePrice', e.target.value)} placeholder="0" className="w-full p-2 bg-white/80 border border-gray-300 rounded-md form-input" />
                                                 </div>
                                                 <div className="col-span-1">
-                                                    <label className="text-xs font-semibold text-slate-500">شماره لات</label>
-                                                    <input type="text" name="lotNumber" data-index={index} value={item.lotNumber} onChange={e => handleItemChange(index, 'lotNumber', e.target.value)} placeholder="-" className="w-full p-2 bg-white/80 border border-gray-300 rounded-md form-input" />
+                                                    <label className="text-xs font-semibold text-slate-500 flex justify-between">
+                                                        <span>شماره لات (سریال)</span>
+                                                        <span className="text-red-500">*</span>
+                                                    </label>
+                                                    <input type="text" name="lotNumber" data-index={index} value={item.lotNumber} onChange={e => handleItemChange(index, 'lotNumber', e.target.value)} placeholder="اجباری" className={`w-full p-2 bg-white/80 border ${!item.lotNumber ? 'border-red-300 animate-pulse' : 'border-gray-300'} rounded-md form-input font-mono`} />
                                                 </div>
                                                 <div className="col-span-2 md:col-span-1">
                                                    <label className="text-xs font-semibold text-slate-500">انقضا</label>

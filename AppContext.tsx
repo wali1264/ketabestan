@@ -1,5 +1,4 @@
 
-
 import React, { createContext, useContext, ReactNode, useState, useEffect } from 'react';
 import type {
     Product, ProductBatch, SaleInvoice, PurchaseInvoice, PurchaseInvoiceItem, InvoiceItem,
@@ -33,7 +32,7 @@ interface AppContextType extends AppState {
     importData: (file: File) => void;
 
     // Inventory Actions
-    addProduct: (product: Omit<Product, 'id' | 'batches'>, firstBatch: Omit<ProductBatch, 'id'>) => { success: boolean; message: string }; // kept sync signature for UI, but triggers async
+    addProduct: (product: Omit<Product, 'id' | 'batches'>, firstBatch: Omit<ProductBatch, 'id'>) => { success: boolean; message: string }; 
     updateProduct: (product: Product) => { success: boolean; message: string };
     deleteProduct: (productId: string) => void;
     
@@ -53,7 +52,7 @@ interface AppContextType extends AppState {
     beginEditPurchase: (invoiceId: string) => { success: boolean, message: string };
     cancelEditPurchase: () => void;
     updatePurchaseInvoice: (invoiceData: Omit<PurchaseInvoice, 'id' | 'totalAmount' | 'items' | 'type' | 'originalInvoiceId'> & { items: Omit<PurchaseInvoiceItem, 'productName'>[] }) => { success: boolean, message: string };
-    addPurchaseReturn: (originalInvoiceId: string, returnItems: { productId: string; quantity: number }[]) => { success: boolean; message: string };
+    addPurchaseReturn: (originalInvoiceId: string, returnItems: { productId: string; lotNumber: string, quantity: number }[]) => { success: boolean; message: string };
 
     // Settings
     updateSettings: (newSettings: StoreSettings) => void;
@@ -95,15 +94,13 @@ const getDefaultState = (): AppState => {
     };
 };
 
-// Helper to generate short sequential IDs (F1, F2, etc.)
 const generateNextId = (prefix: string, ids: string[]): string => {
     let max = 0;
-    const regex = new RegExp(`^${prefix}(\\d+)$`); // Strict regex: Prefix + Digits ONLY
+    const regex = new RegExp(`^${prefix}(\\d+)$`); 
     for (const id of ids) {
         const match = id.match(regex);
         if (match) {
              const num = parseInt(match[1], 10);
-             // Ignore ridiculously large numbers (timestamps)
              if (!isNaN(num) && num < 100000000000) {
                  if (num > max) max = num;
              }
@@ -126,7 +123,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     const showToast = (message: string) => setToastMessage(message);
 
-    // --- Initial Data Load from Supabase ---
     const fetchData = async () => {
         setIsLoading(true);
         try {
@@ -142,7 +138,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 api.getActivities()
             ]);
 
-            // --- Persistent Login Logic ---
             const storedUserId = localStorage.getItem('stationery_user_id');
             let restoredUser = null;
             let isAuth = false;
@@ -154,11 +149,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                     isAuth = true;
                 }
             }
-            // ------------------------------
 
-            // --- HYDRATION: Re-link Product Details to Invoices ---
-            // When invoices come from DB, itemsPerPackage defaults to 1. 
-            // We need to look up the current product definition to know how to split Packages/Units correctly.
             const hydratedSaleInvoices = invoices.saleInvoices.map(invoice => ({
                 ...invoice,
                 items: invoice.items.map(item => {
@@ -189,11 +180,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 customerTransactions: transactions.customerTransactions,
                 supplierTransactions: transactions.supplierTransactions,
                 payrollTransactions: transactions.payrollTransactions,
-                saleInvoices: hydratedSaleInvoices, // Use hydrated invoices
+                saleInvoices: hydratedSaleInvoices, 
                 purchaseInvoices: invoices.purchaseInvoices,
                 activities: activity,
                 saleInvoiceCounter: invoices.saleInvoices.length,
-                // Restore session
                 isAuthenticated: isAuth,
                 currentUser: restoredUser
             }));
@@ -213,28 +203,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const newActivity: ActivityLog = {
             id: crypto.randomUUID(), type, description, timestamp: new Date().toISOString(), user, refId, refType
         };
-        // Update local state immediately
         setState(prev => ({ ...prev, activities: [newActivity, ...prev.activities] }));
-        // Send to DB
         try {
             await api.addActivity(newActivity);
         } catch (e) { console.error("Failed to log activity", e); }
         return newActivity;
     };
     
-    // AUTH & RBAC LOGIC
     const login = async (username: string, password: string): Promise<{ success: boolean; message: string }> => {
-        // Since we are using custom auth table, we check against loaded users or fetch specific one.
-        // We already loaded users in fetchData, so we check local state which mirrors DB.
         if (!checkOnline()) return { success: false, message: '⚠️ شما آفلاین هستید. لطفاً اتصال اینترنت را بررسی کنید.' };
         try {
             const users = await api.getUsers();
             const user = users.find(u => u.username === username);
             
             if (user && user.password === password) {
-                // Save session to localStorage
                 localStorage.setItem('stationery_user_id', user.id);
-                
                 setState(prev => ({ ...prev, isAuthenticated: true, currentUser: user, users }));
                 return { success: true, message: '✅ ورود موفق' };
             }
@@ -246,7 +229,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
 
     const logout = () => {
-        // Clear session from localStorage
         localStorage.removeItem('stationery_user_id');
         setState(prev => ({ ...prev, isAuthenticated: false, currentUser: null }));
     };
@@ -257,7 +239,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         return userRole?.permissions.includes(permission) ?? false;
     };
     
-    // --- User Management ---
     const addUser = async (userData: Omit<User, 'id'>) => {
         if (!checkOnline()) return { success: false, message: '⚠️ شما آفلاین هستید.' };
         try {
@@ -292,7 +273,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
          } catch (e) { showToast("❌ خطا در حذف کاربر."); }
     };
 
-    // --- Role Management ---
     const addRole = async (roleData: Omit<Role, 'id'>) => {
         if (!checkOnline()) return { success: false, message: '⚠️ شما آفلاین هستید.' };
         try {
@@ -327,7 +307,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         } catch(e) { showToast("❌ خطا در حذف نقش."); }
     };
 
-    // BACKUP & RESTORE (Kept local for now, but data comes from state)
     const exportData = () => {
         const dataStr = JSON.stringify(state, null, 2);
         const blob = new Blob([dataStr], { type: "application/json" });
@@ -355,13 +334,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             try {
                 const json = e.target?.result as string;
                 const data = JSON.parse(json) as AppState;
-                
                 setIsLoading(true);
                 showToast("⏳ در حال بازیابی اطلاعات (لطفا صبر کنید)...");
-                
                 await api.clearAndRestoreData(data);
-                
-                await fetchData(); // Reload everything from DB
+                await fetchData(); 
                 showToast("✅ بازیابی اطلاعات با موفقیت انجام شد.");
             } catch (error) {
                 console.error("Import Error:", error);
@@ -373,7 +349,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         reader.readAsText(file);
     };
 
-    // INVENTORY LOGIC
     const addProduct = (productData: Omit<Product, 'id' | 'batches'>, firstBatchData: Omit<ProductBatch, 'id'>) => {
         if (!checkOnline()) return { success: false, message: '⚠️ شما آفلاین هستید. اتصال اینترنت را بررسی کنید.' };
         
@@ -409,7 +384,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if (!checkOnline()) { showToast("⚠️ شما آفلاین هستید."); return; }
         const product = state.products.find(p => p.id === productId);
         
-        // GUARD: Check history
         const hasSalesHistory = state.saleInvoices.some(inv => inv.items.some(item => item.id === productId && item.type === 'product'));
         const hasPurchaseHistory = state.purchaseInvoices.some(inv => inv.items.some(item => item.productId === productId));
 
@@ -425,7 +399,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }).catch(() => showToast('❌ خطا در حذف محصول.'));
     };
 
-    // POS LOGIC (State manipulation kept local until 'completeSale')
     const addToCart = (itemToAdd: Product | Service, type: 'product' | 'service') => {
         let success = false, message = '';
         setState(prev => {
@@ -481,7 +454,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setState(prev => ({
             ...prev, cart: prev.cart.map(item =>
                 (item.id === itemId && item.type === itemType && item.type === 'product')
-                    ? { ...item, finalPrice: finalPrice } // Removed Math.round()
+                    ? { ...item, finalPrice: finalPrice } 
                     : item
             )
         }));
@@ -499,7 +472,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         return { final: item.price, original: item.price };
     };
     
-    // CRITICAL FIX: Made async to wait for DB confirmation before returning success
     const completeSale = async (cashier: string, customerId?: string): Promise<{ success: boolean; invoice?: SaleInvoice; message: string }> => {
         if (!checkOnline()) return { success: false, message: '⚠️ شما آفلاین هستید. امکان ثبت فاکتور وجود ندارد.' };
         
@@ -511,7 +483,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const newTotalAmount = cart.reduce((total, item) => getPrice(item).final * item.quantity + total, 0);
         const newTotalDiscount = newSubtotal - newTotalAmount;
 
-        // 1. Prepare Updates
         const updatedProducts = JSON.parse(JSON.stringify(products));
         const stockUpdates: {batchId: string, newStock: number}[] = [];
         const saleItemsWithPurchasePrice: CartItem[] = [];
@@ -526,8 +497,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             
             const product = updatedProducts[productIndex];
             
-            // Stock Deduction Logic
             const batchesWithExpiry = product.batches.filter((b: ProductBatch) => b.expiryDate && b.stock > 0).sort((a: ProductBatch, b: ProductBatch) => new Date(a.expiryDate!).getTime() - new Date(b.expiryDate!).getTime());
+            // FIX: Changed 'purchase_date' to 'purchaseDate' to match ProductBatch interface.
             const batchesWithoutExpiry = product.batches.filter((b: ProductBatch) => !b.expiryDate && b.stock > 0).sort((a: ProductBatch, b: ProductBatch) => new Date(a.purchaseDate).getTime() - new Date(b.purchaseDate).getTime());
             const deductionOrder = [...batchesWithExpiry, ...batchesWithoutExpiry];
             
@@ -549,7 +520,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             saleItemsWithPurchasePrice.push({ ...item, purchasePrice: totalPurchaseValue / item.quantity });
         }
 
-        // Use sequential ID for new invoices, or keep existing ID for edits
         const invoiceId = editingSaleInvoiceId || generateNextId('F', saleInvoices.map(i => i.id));
         
         const finalInvoice: SaleInvoice = { 
@@ -564,14 +534,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             customerId, 
         };
 
-        // Customer Update Object Preparation
         let customerUpdate;
         if (customerId) {
             const customer = customers.find(c => c.id === customerId);
             if(customer) {
                 customerUpdate = {
                     id: customerId,
-                    newBalance: customer.balance + finalInvoice.totalAmount, // For new, this is right. For edit, service handles revert.
+                    newBalance: customer.balance + finalInvoice.totalAmount, 
                     transaction: { 
                         id: crypto.randomUUID(), 
                         customerId, 
@@ -587,9 +556,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
         try {
             if (editingSaleInvoiceId) {
-                // --- EDIT MODE ---
                 const oldInvoice = saleInvoices.find(inv => inv.id === editingSaleInvoiceId)!;
-                
                 const stockRestores: {productId: string, quantity: number}[] = [];
                 oldInvoice.items.filter(i => i.type === 'product').forEach(item => {
                     stockRestores.push({ productId: item.id, quantity: item.quantity });
@@ -615,7 +582,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                     };
                 }
                 
-                // Await Server Confirmation
                 await api.updateSale(invoiceId, finalInvoice, stockRestores, stockUpdates.map(u => {
                      const p = products.find(p => p.batches.some(b => b.id === u.batchId));
                      const b = p?.batches.find(b => b.id === u.batchId);
@@ -623,18 +589,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 }), custUpdateParams);
 
                 addActivityLocal('sale', `فاکتور فروش #${finalInvoice.id} را ویرایش کرد`, cashier, finalInvoice.id, 'saleInvoice');
-                await fetchData(); // Reload all data to be safe after edit
+                await fetchData(); 
                 showToast("✅ فاکتور ویرایش شد.");
                 setState(prev => ({ ...prev, editingSaleInvoiceId: null, cart: [] }));
 
             } else {
-                // --- CREATE MODE ---
-                // Await Server Confirmation BEFORE updating local state
                 await api.createSale(finalInvoice, stockUpdates, customerUpdate);
-                
                 addActivityLocal('sale', `فاکتور فروش #${finalInvoice.id} به مبلغ ${formatCurrency(finalInvoice.totalAmount, storeSettings)} ثبت کرد`, cashier, finalInvoice.id, 'saleInvoice');
                  
-                // Safe Optimistic Update (Since API call succeeded)
                 setState(prev => {
                      const newSaleInvoices = [finalInvoice, ...prev.saleInvoices];
                      const newProducts = updatedProducts;
@@ -652,9 +614,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 });
                 showToast("✅ فاکتور با موفقیت ثبت شد.");
             }
-
             return { success: true, invoice: finalInvoice, message: 'فاکتور ثبت شد.' };
-
         } catch (err) {
             console.error("Sale transaction failed:", err);
             showToast("❌ خطا در ثبت فاکتور در پایگاه داده. لطفاً مجدد تلاش کنید.");
@@ -684,11 +644,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const originalInvoice = state.saleInvoices.find(i => i.id === originalInvoiceId);
         if (!originalInvoice) return { success: false, message: "فاکتور اصلی یافت نشد." };
         
-        // Calculate return amounts
         let returnSubtotal = 0;
         let returnTotal = 0;
         
-        // Map return items to full details
         const detailedReturnItems = returnItems.map(ri => {
             const originalItem = originalInvoice.items.find(i => i.id === ri.id && i.type === ri.type);
             if (!originalItem) return null;
@@ -730,14 +688,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     const setInvoiceTransientCustomer = async (invoiceId: string, customerName: string) => {
          if (!checkOnline()) return;
-         // Update local state optimistically
          setState(prev => ({
              ...prev,
              saleInvoices: prev.saleInvoices.map(inv => 
                  inv.id === invoiceId ? { ...inv, originalInvoiceId: customerName } : inv
              )
          }));
-         // Send update to DB
          try {
              await api.updateSaleInvoiceMetadata(invoiceId, { original_invoice_id: customerName || null });
          } catch (e) {
@@ -745,7 +701,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
          }
     }
 
-    // PURCHASE ACTIONS
     const addPurchaseInvoice = (invoiceData: any) => {
         if (!checkOnline()) return { success: false, message: '⚠️ شما آفلاین هستید.' };
         
@@ -753,39 +708,38 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const supplier = suppliers.find(s => s.id === invoiceData.supplierId);
         if(!supplier) return { success: false, message: "تأمین کننده نامعتبر" };
 
-        // Generate a clean sequential ID (P1, P2...) instead of timestamp
-        const invoiceId = generateNextId('P', purchaseInvoices.map(i => i.id));
+        // VALIDATION: Duplicate Lot Number across entire system for specified products
+        for (const item of invoiceData.items) {
+            const existingProduct = products.find(p => p.id === item.productId);
+            if (existingProduct?.batches.some(b => b.lotNumber === item.lotNumber)) {
+                return { success: false, message: `خطا: شماره لات "${item.lotNumber}" قبلاً برای محصول "${existingProduct.name}" ثبت شده است.` };
+            }
+        }
 
-        // Currency Logic: Convert to Base if needed for Stock Valuation, but keep track of original
+        const invoiceId = generateNextId('P', purchaseInvoices.map(i => i.id));
         const isUSD = invoiceData.currency === 'USD';
         const rate = isUSD ? Number(invoiceData.exchangeRate) : 1;
 
         const finalItems = invoiceData.items.map((item: any) => ({ 
             ...item, 
             productName: products.find(p => p.id === item.productId)?.name || 'نامشخص',
-            // Store Base Price (AFN) in DB for accurate Cost of Goods Sold
             purchasePrice: item.purchasePrice * rate
         }));
         
-        // Total Amount in Base Currency (AFN) for Supplier Balance
         const totalAmount = finalItems.reduce((total: number, item: any) => total + (item.purchasePrice * item.quantity), 0);
-        
-        // Auto-fill invoice number with system ID if empty
         const finalInvoiceNumber = invoiceData.invoiceNumber ? invoiceData.invoiceNumber : invoiceId;
 
-        // The invoice object stores the metadata about currency
         const invoice: PurchaseInvoice = {
              ...invoiceData, 
              type: 'purchase', 
              id: invoiceId,
-             invoiceNumber: finalInvoiceNumber, // Use auto-filled number
+             invoiceNumber: finalInvoiceNumber, 
              items: finalItems, 
              totalAmount: totalAmount,
              currency: invoiceData.currency,
              exchangeRate: rate
         };
 
-        // Prepare Batches
         const newBatches = [];
         const localProducts = JSON.parse(JSON.stringify(products));
         
@@ -793,32 +747,31 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             const batchId = crypto.randomUUID();
             const newBatch = {
                 id: batchId,
-                productId: item.productId, // Use CamelCase for compatibility with local state & service
+                productId: item.productId, 
                 lotNumber: item.lotNumber,
                 stock: item.quantity,
-                purchasePrice: item.purchasePrice, // Stored in AFN
+                purchasePrice: item.purchasePrice, 
                 purchaseDate: invoice.timestamp,
                 expiryDate: item.expiryDate
             };
             newBatches.push(newBatch);
             
-            // Update local state preview
             const p = localProducts.find((p:Product) => p.id === item.productId);
             if(p) p.batches.push(newBatch);
         }
 
         const supplierUpdate = {
             id: supplier.id,
-            newBalance: supplier.balance + invoice.totalAmount, // Balance tracks total liability in AFN
+            newBalance: supplier.balance + invoice.totalAmount, 
             transaction: {
                  id: crypto.randomUUID(), 
                  supplierId: supplier.id, 
                  type: 'purchase' as const, 
-                 amount: isUSD ? (invoice.totalAmount / rate) : invoice.totalAmount, // Transaction tracks amount in original currency
+                 amount: isUSD ? (invoice.totalAmount / rate) : invoice.totalAmount, 
                  date: invoice.timestamp, 
                  description: `فاکتور خرید #${invoice.invoiceNumber} (${isUSD ? `مبلغ ارزی: ${Math.round(invoice.totalAmount/rate).toLocaleString()}$` : ''})`, 
                  invoiceId: invoice.id,
-                 currency: invoiceData.currency // Track currency explicitly
+                 currency: invoiceData.currency 
             }
         };
 
@@ -854,17 +807,23 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const invoiceId = state.editingPurchaseInvoiceId!;
         const oldInvoice = state.purchaseInvoices.find(i => i.id === invoiceId)!;
         
+        const isUSD = invoiceData.currency === 'USD';
+        const rate = isUSD ? Number(invoiceData.exchangeRate) : 1;
+
         const finalItems = invoiceData.items.map((item: any) => ({ 
             ...item, 
-            productName: state.products.find(p => p.id === item.productId)?.name || 'نامشخص' 
+            productName: state.products.find(p => p.id === item.productId)?.name || 'نامشخص',
+            purchasePrice: item.purchasePrice * rate
         }));
-        const totalAmount = invoiceData.items.reduce((total: number, item: any) => total + (Number(item.purchasePrice) * Number(item.quantity)), 0);
+        
+        const totalAmount = finalItems.reduce((total: number, item: any) => total + (item.purchasePrice * item.quantity), 0);
 
         const newInvoice: PurchaseInvoice = {
              ...oldInvoice,
              ...invoiceData,
              items: finalItems,
-             totalAmount
+             totalAmount,
+             exchangeRate: rate
         };
 
         const supplierUpdate = {
@@ -873,31 +832,34 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             newAmount: totalAmount
         };
 
-        api.updatePurchase(invoiceId, newInvoice, [], supplierUpdate).then(() => {
-            showToast("✅ فاکتور خرید ویرایش شد. (توجه: موجودی کالاها را در صورت نیاز دستی اصلاح کنید)");
+        api.updatePurchase(invoiceId, newInvoice, supplierUpdate).then(() => {
+            addActivityLocal('purchase', `فاکتور خرید #${newInvoice.invoiceNumber} را ویرایش کرد`, state.currentUser!.username, newInvoice.id, 'purchaseInvoice');
+            showToast("✅ فاکتور خرید و انبار بروزرسانی شدند.");
             fetchData();
             setState(prev => ({ ...prev, editingPurchaseInvoiceId: null }));
+        }).catch(err => {
+            console.error(err);
+            showToast("❌ خطا در ویرایش فاکتور خرید.");
         });
 
         return { success: true, message: "در حال بروزرسانی..." };
     };
 
-    const addPurchaseReturn = (originalInvoiceId: string, returnItems: { productId: string; quantity: number }[]) => {
+    const addPurchaseReturn = (originalInvoiceId: string, returnItems: { productId: string; lotNumber: string, quantity: number }[]) => {
         if (!checkOnline()) return { success: false, message: '⚠️ شما آفلاین هستید.' };
         const originalInvoice = state.purchaseInvoices.find(i => i.id === originalInvoiceId);
         if (!originalInvoice) return { success: false, message: "فاکتور یافت نشد" };
 
-        // Calculate return totals
         let returnTotal = 0;
         const fullReturnItems: PurchaseInvoiceItem[] = [];
         const stockDeductions: {productId: string, quantity: number, lotNumber: string}[] = [];
 
         returnItems.forEach(ri => {
-            const originalItem = originalInvoice.items.find(i => i.productId === ri.productId);
+            const originalItem = originalInvoice.items.find(i => i.productId === ri.productId && i.lotNumber === ri.lotNumber);
             if (originalItem) {
                 returnTotal += originalItem.purchasePrice * ri.quantity;
                 fullReturnItems.push({ ...originalItem, quantity: ri.quantity });
-                stockDeductions.push({ productId: ri.productId, quantity: ri.quantity, lotNumber: originalItem.lotNumber });
+                stockDeductions.push({ productId: ri.productId, quantity: ri.quantity, lotNumber: ri.lotNumber });
             }
         });
 
@@ -918,14 +880,33 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
         api.createPurchaseReturn(returnInvoice, stockDeductions, supplierRefund).then(() => {
             addActivityLocal('purchase', `مرجوعی خرید ثبت کرد`, state.currentUser!.username, returnInvoice.id, 'purchaseInvoice');
-            fetchData();
+            
+            // LOCAL STATE UPDATE: Immediate stock reduction
+            const updatedProducts = JSON.parse(JSON.stringify(state.products));
+            stockDeductions.forEach(deduction => {
+                const product = updatedProducts.find((p:any) => p.id === deduction.productId);
+                if (product) {
+                    const batch = product.batches.find((b:any) => b.lotNumber === deduction.lotNumber);
+                    if (batch) {
+                        batch.stock = Math.max(0, batch.stock - deduction.quantity);
+                    }
+                }
+            });
+            
+            setState(prev => ({
+                ...prev,
+                products: updatedProducts,
+                purchaseInvoices: [returnInvoice, ...prev.purchaseInvoices],
+                suppliers: prev.suppliers.map(s => s.id === originalInvoice.supplierId ? {...s, balance: s.balance - returnTotal} : s)
+            }));
+
+            fetchData(); // Sync with server
             showToast("✅ مرجوعی خرید ثبت شد.");
         });
 
         return { success: true, message: "در حال ثبت..." };
     };
 
-    // SETTINGS
     const updateSettings = (newSettings: StoreSettings) => {
         if (!checkOnline()) { showToast('⚠️ شما آفلاین هستید.'); return; }
         api.updateSettings(newSettings).then(() => {
@@ -934,7 +915,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         });
     };
 
-    // SERVICES
     const addService = (service: any) => {
         if (!checkOnline()) { showToast('⚠️ شما آفلاین هستید.'); return; }
         api.addService(service).then(newS => setState(prev => ({ ...prev, services: [...prev.services, newS] })));
@@ -944,7 +924,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         api.deleteService(id).then(() => setState(prev => ({ ...prev, services: prev.services.filter(s => s.id !== id) })));
     };
 
-    // ACCOUNTING
     const addSupplier = (s: any, initialBalance?: { amount: number, type: 'creditor' | 'debtor', currency: 'AFN' | 'USD', exchangeRate?: number }) => {
         api.addSupplier(s).then(newS => {
             setState(prev => ({...prev, suppliers: [...prev.suppliers, newS]}));
@@ -955,17 +934,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 const originalAmount = initialBalance.amount;
 
                 if (initialBalance.type === 'creditor') {
-                    // We owe them
                     const transaction: SupplierTransaction = {
                         id: crypto.randomUUID(),
                         supplierId: newS.id,
                         type: 'purchase',
-                        amount: originalAmount, // Face value
+                        amount: originalAmount, 
                         date: new Date().toISOString(),
                         description: 'تراز اول دوره (بدهی قبلی ما)',
                         currency: initialBalance.currency
                     };
-                    // Update balance in base currency (AFN)
                     api.processPayment('supplier', newS.id, amountInBase, transaction).then(() => {
                         setState(prev => ({
                             ...prev,
@@ -974,7 +951,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                         }));
                     });
                 } else {
-                    // They owe us (Payment)
                     const transaction: SupplierTransaction = {
                         id: crypto.randomUUID(),
                         supplierId: newS.id,
@@ -1019,12 +995,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 const descSuffix = isUSD ? ` (معادل ${initialBalance.amount.toLocaleString()}$ با نرخ ${rate})` : '';
 
                 if (initialBalance.type === 'debtor') {
-                    // Customer owes us
                     const transaction = {
                         id: crypto.randomUUID(),
                         customerId: newC.id,
                         type: 'credit_sale' as const,
-                        amount: amountInBase, // Always AFN for Customer Transactions currently
+                        amount: amountInBase, 
                         date: new Date().toISOString(),
                         description: `تراز اول دوره (بدهی مشتری)${descSuffix}`,
                     };
@@ -1036,7 +1011,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                         }));
                     });
                 } else {
-                    // We owe customer (Prepayment)
                     const transaction = {
                         id: crypto.randomUUID(),
                         customerId: newC.id,
@@ -1076,7 +1050,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const addSupplierPayment = (supplierId: string, amount: number, description: string, currency: 'AFN' | 'USD' = 'AFN', exchangeRate: number = 1) => {
         if (!checkOnline()) { showToast('⚠️ شما آفلاین هستید.'); return {} as any; }
         
-        // Transaction stores the exact currency paid
         const transaction: SupplierTransaction = { 
             id: crypto.randomUUID(), 
             supplierId, 
@@ -1088,7 +1061,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         };
         
         const supplier = state.suppliers.find(s => s.id === supplierId)!;
-        // Balance update always happens in AFN to keep total liability single-threaded
         const paymentValueInAFN = currency === 'USD' ? amount * exchangeRate : amount;
         const newBalance = supplier.balance - paymentValueInAFN;
         

@@ -5,7 +5,7 @@ import DateRangeFilter from '../components/DateRangeFilter';
 import { formatCurrency } from '../utils/formatters';
 import type { Product, SaleInvoice, User, Customer, Supplier, CustomerTransaction, SupplierTransaction } from '../types';
 import TransactionHistoryModal from '../components/TransactionHistoryModal';
-import { PrintIcon } from '../components/icons';
+import { PrintIcon, WarningIcon, UserGroupIcon, InventoryIcon, AccountingIcon } from '../components/icons';
 import ReportPrintPreviewModal from '../components/ReportPrintPreviewModal';
 
 const Reports: React.FC = () => {
@@ -33,23 +33,16 @@ const Reports: React.FC = () => {
         filteredInvoices.forEach(inv => {
             if (inv.type === 'sale') {
                 grossRevenue += inv.totalAmount;
-                // Accumulate only positive discounts (real discounts)
-                // Surcharges (totalDiscount < 0) are effectively part of revenue, so we ignore them for the 'Discount' metric
                 if (inv.totalDiscount > 0) {
                     totalDiscountsGiven += inv.totalDiscount;
                 }
-
-                // Calculate COGS for this invoice
                 inv.items.forEach(item => {
                     if (item.type === 'product') {
-                        // purchasePrice is snapshot at time of sale
                         totalCOGS += (item.purchasePrice || 0) * item.quantity;
                     }
                 });
-
             } else if (inv.type === 'return') {
                 returnsAmount += inv.totalAmount;
-                // Reverse COGS for returns
                 inv.items.forEach(item => {
                     if (item.type === 'product') {
                         totalCOGS -= (item.purchasePrice || 0) * item.quantity;
@@ -59,16 +52,12 @@ const Reports: React.FC = () => {
         });
 
         const netSales = grossRevenue - returnsAmount;
-        
         const totalExpenses = expenses.filter(exp => {
             const expTime = new Date(exp.date).getTime();
             return expTime >= dateRange.start.getTime() && expTime <= dateRange.end.getTime();
         }).reduce((sum, exp) => sum + exp.amount, 0);
 
-        // Gross Profit = Net Sales - COGS
         const grossProfit = netSales - totalCOGS;
-        
-        // Net Income = Gross Profit - Expenses
         const netIncome = grossProfit - totalExpenses;
 
         const topProducts = filteredInvoices
@@ -78,7 +67,6 @@ const Reports: React.FC = () => {
                 const existing = acc.find(p => p.id === item.id);
                 const price = (item as any).finalPrice ?? (item as any).salePrice;
                 const qty = item.quantity; 
-                // Note: Not subtracting returns from top products list to keep it simple "Top Moved Items"
                 if (existing) {
                     existing.quantity += qty;
                     existing.totalValue += qty * price;
@@ -113,7 +101,6 @@ const Reports: React.FC = () => {
             returnsAmount,
             totalCOGS 
         };
-
     }, [saleInvoices, expenses, dateRange]);
     
     // --- Inventory Calculations ---
@@ -130,6 +117,33 @@ const Reports: React.FC = () => {
         return { totalValue, totalItems, stagnantProducts };
     }, [products, saleInvoices, dateRange]);
     
+    // --- Financial Position (Balance Sheet) Logic ---
+    const financialPositionData = useMemo(() => {
+        const inventoryValue = products.reduce((sum, p) => 
+            sum + p.batches.reduce((batchSum, b) => batchSum + (b.stock * b.purchasePrice), 0), 0
+        );
+
+        const customerReceivables = customers.reduce((sum, c) => sum + (c.balance > 0 ? c.balance : 0), 0);
+        const supplierPayables = suppliers.reduce((sum, s) => sum + (s.balance > 0 ? s.balance : 0), 0);
+        
+        const totalAssets = inventoryValue + customerReceivables;
+        const netCapital = totalAssets - supplierPayables;
+
+        const topDebtors = [...customers]
+            .filter(c => c.balance > 0)
+            .sort((a, b) => b.balance - a.balance)
+            .slice(0, 5);
+
+        return {
+            inventoryValue,
+            customerReceivables,
+            supplierPayables,
+            totalAssets,
+            netCapital,
+            topDebtors
+        };
+    }, [products, customers, suppliers]);
+
     // --- Employee Activity Calculations ---
     const [selectedEmployee, setSelectedEmployee] = useState('all');
     const [selectedActivityTypes, setSelectedActivityTypes] = useState<string[]>([]);
@@ -156,7 +170,6 @@ const Reports: React.FC = () => {
 
     const accountReportData = useMemo(() => {
         if (!selectedAccount) return null;
-        
         let person, transactions;
         if(selectedAccount.type === 'customer') {
             person = customers.find(c => c.id === selectedAccount.id);
@@ -168,17 +181,14 @@ const Reports: React.FC = () => {
         return { person, transactions };
     }, [selectedAccount, customers, suppliers, customerTransactions, supplierTransactions]);
 
-    // NEW: Collections Data Logic
     const collectionsData = useMemo(() => {
         const filteredPayments = customerTransactions.filter(t => {
             const tTime = new Date(t.date).getTime();
             const inRange = tTime >= dateRange.start.getTime() && tTime <= dateRange.end.getTime();
             return t.type === 'payment' && inRange;
         });
-
         const totalCollected = filteredPayments.reduce((sum, t) => sum + t.amount, 0);
         const count = filteredPayments.length;
-
         const details = filteredPayments.map(t => {
             const customer = customers.find(c => c.id === t.customerId);
             return {
@@ -189,30 +199,22 @@ const Reports: React.FC = () => {
                 description: t.description
             };
         }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
         return { totalCollected, count, details };
     }, [customerTransactions, dateRange, customers]);
 
-
     const openHistoryModal = () => { if(accountReportData?.person) setHistoryModalOpen(true); };
 
-    // Smart Stat Card with Adaptive Typography
-    const SmartStatCard: React.FC<{ title: string, value: string, color: string }> = ({ title, value, color }) => {
-        // Determine font size based on length
+    const SmartStatCard: React.FC<{ title: string, value: string, color: string, icon?: React.ReactNode }> = ({ title, value, color, icon }) => {
         let fontSizeClass = 'text-3xl';
         if (value.length > 25) fontSizeClass = 'text-lg';
         else if (value.length > 20) fontSizeClass = 'text-xl';
         else if (value.length > 15) fontSizeClass = 'text-2xl';
 
         return (
-            <div className="bg-white/70 p-5 rounded-xl shadow-md border flex flex-col justify-center h-32 transition-transform duration-200 hover:-translate-y-1">
-                <h4 className="text-md font-semibold text-slate-600 mb-2 truncate" title={title}>{title}</h4>
-                <p 
-                    className={`${fontSizeClass} font-extrabold ${color} whitespace-nowrap overflow-hidden text-ellipsis`} 
-                    title={value} // Native tooltip for truncated text
-                >
-                    {value}
-                </p>
+            <div className="bg-white/70 p-5 rounded-xl shadow-md border flex flex-col justify-center h-32 transition-transform duration-200 hover:-translate-y-1 relative overflow-hidden group">
+                {icon && <div className="absolute -left-2 -bottom-2 opacity-10 scale-150 transform group-hover:scale-[1.7] transition-transform duration-500">{icon}</div>}
+                <h4 className="text-md font-semibold text-slate-600 mb-2 truncate relative z-10" title={title}>{title}</h4>
+                <p className={`${fontSizeClass} font-extrabold ${color} whitespace-nowrap overflow-hidden text-ellipsis relative z-10`} title={value}>{value}</p>
             </div>
         );
     };
@@ -291,19 +293,117 @@ const Reports: React.FC = () => {
                                 </table>
                             </div>
                         </div>
-                        <div className="p-4 bg-white/70 rounded-xl shadow-md border">
-                            <h3 className="font-bold text-lg mb-2">گزارش کالاهای راکد</h3>
-                            <p className="text-sm text-slate-500 mb-2">کالاهایی که در بازه زمانی انتخاب شده فروشی نداشته‌اند.</p>
-                            <ul className="list-disc list-inside columns-2 md:columns-4">
-                                {inventoryData.stagnantProducts.map(p => <li key={p.id}>{p.name}</li>)}
-                            </ul>
-                        </div>
                     </div>
                 );
                  return (
                     <div>
                         <button onClick={() => handlePrintReport('گزارش انبار و موجودی', inventoryReportContent)} className="flex items-center gap-2 mb-4 px-4 py-2 bg-slate-200 rounded-md text-slate-700 hover:bg-slate-300 transition-colors"><PrintIcon /> چاپ گزارش</button>
                         {inventoryReportContent}
+                    </div>
+                );
+            case 'financial_position':
+                const financialReportContent = (
+                    <div className="space-y-8">
+                        {/* 3 Column Structure for Assets, Liabilities, and Net */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            {/* Assets Column */}
+                            <div className="space-y-4">
+                                <h3 className="font-bold text-slate-700 flex items-center gap-2 border-b-2 border-green-500 pb-2">
+                                    <span className="w-3 h-3 rounded-full bg-green-500"></span>
+                                    دارایی‌های جاری
+                                </h3>
+                                <SmartStatCard title="ارزش موجودی انبار" value={formatCurrency(financialPositionData.inventoryValue, storeSettings)} color="text-green-600" icon={<InventoryIcon />} />
+                                <SmartStatCard title="مجموع طلب از مشتریان" value={formatCurrency(financialPositionData.customerReceivables, storeSettings)} color="text-green-600" icon={<UserGroupIcon />} />
+                                <div className="bg-green-50 p-4 rounded-xl border border-green-100 flex justify-between items-center">
+                                    <span className="font-bold text-green-800">کل دارایی‌ها:</span>
+                                    <span className="font-extrabold text-green-700 text-lg">{formatCurrency(financialPositionData.totalAssets, storeSettings)}</span>
+                                </div>
+                            </div>
+
+                            {/* Liabilities Column */}
+                            <div className="space-y-4">
+                                <h3 className="font-bold text-slate-700 flex items-center gap-2 border-b-2 border-red-500 pb-2">
+                                    <span className="w-3 h-3 rounded-full bg-red-500"></span>
+                                    تعهدات و بدهی‌ها
+                                </h3>
+                                <SmartStatCard title="بدهی به تأمین‌کنندگان" value={formatCurrency(financialPositionData.supplierPayables, storeSettings)} color="text-red-600" icon={<AccountingIcon />} />
+                                <div className="p-4 bg-slate-50 rounded-xl text-slate-400 text-sm border border-slate-200 h-32 flex items-center justify-center text-center">
+                                    <p>سایر بدهی‌ها (مساعده کارمندان و ...) در این بخش محاسبه نشده‌اند.</p>
+                                </div>
+                                <div className="bg-red-50 p-4 rounded-xl border border-red-100 flex justify-between items-center">
+                                    <span className="font-bold text-red-800">کل بدهی‌ها:</span>
+                                    <span className="font-extrabold text-red-700 text-lg">{formatCurrency(financialPositionData.supplierPayables, storeSettings)}</span>
+                                </div>
+                            </div>
+
+                            {/* Net Worth Column */}
+                            <div className="space-y-4">
+                                <h3 className="font-bold text-slate-700 flex items-center gap-2 border-b-2 border-blue-500 pb-2">
+                                    <span className="w-3 h-3 rounded-full bg-blue-500"></span>
+                                    سرمایه خالص (ثروت واقعی)
+                                </h3>
+                                <div className="bg-gradient-to-br from-blue-600 to-indigo-700 p-8 rounded-2xl shadow-xl text-white h-[280px] flex flex-col justify-center items-center text-center">
+                                    <h4 className="text-blue-100 mb-4 font-semibold">ارزش کل نهایی فروشگاه</h4>
+                                    <p className="text-4xl lg:text-5xl font-black mb-2 drop-shadow-md" dir="ltr">{formatCurrency(financialPositionData.netCapital, storeSettings)}</p>
+                                    <div className="mt-6 py-2 px-4 bg-white/20 rounded-full text-xs backdrop-blur-md">
+                                        محاسبه شده بر اساس قیمت خرید کالاها
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Analysis Section */}
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-4">
+                            <div className="p-5 bg-white/70 rounded-2xl shadow-lg border border-orange-100">
+                                <div className="flex items-center gap-2 mb-4">
+                                    <WarningIcon className="w-6 h-6 text-orange-600" />
+                                    <h3 className="font-bold text-lg text-slate-800">تحلیل ریسک سرمایه</h3>
+                                </div>
+                                <p className="text-sm text-slate-600 mb-4">لیست مشتریانی که بیشترین بدهی را دارند و سرمایه شما را بلوکه کرده‌اند:</p>
+                                <div className="space-y-3">
+                                    {financialPositionData.topDebtors.map(c => (
+                                        <div key={c.id} className="flex justify-between items-center p-3 bg-white rounded-lg border border-slate-100">
+                                            <span className="font-semibold text-slate-700">{c.name}</span>
+                                            <span className="font-bold text-red-600" dir="ltr">{formatCurrency(c.balance, storeSettings)}</span>
+                                        </div>
+                                    ))}
+                                    {financialPositionData.topDebtors.length === 0 && <p className="text-center py-4 text-slate-400">مشتری بدهکاری یافت نشد.</p>}
+                                </div>
+                            </div>
+                            <div className="p-5 bg-white/70 rounded-2xl shadow-lg border border-blue-100 flex flex-col justify-center">
+                                <h3 className="font-bold text-lg text-slate-800 mb-4 text-center">ترکیب دارایی‌ها</h3>
+                                <div className="flex items-center h-12 w-full rounded-full overflow-hidden bg-slate-100 shadow-inner">
+                                    <div 
+                                        className="h-full bg-blue-500 flex items-center justify-center text-[10px] text-white font-bold transition-all duration-1000"
+                                        style={{ width: `${(financialPositionData.inventoryValue / financialPositionData.totalAssets) * 100}%` }}
+                                    >
+                                        کالا {Math.round((financialPositionData.inventoryValue / financialPositionData.totalAssets) * 100)}%
+                                    </div>
+                                    <div 
+                                        className="h-full bg-orange-400 flex items-center justify-center text-[10px] text-white font-bold transition-all duration-1000"
+                                        style={{ width: `${(financialPositionData.customerReceivables / financialPositionData.totalAssets) * 100}%` }}
+                                    >
+                                        مطالبات {Math.round((financialPositionData.customerReceivables / financialPositionData.totalAssets) * 100)}%
+                                    </div>
+                                </div>
+                                <div className="mt-6 space-y-2">
+                                    <div className="flex items-center gap-2 text-xs text-slate-600">
+                                        <div className="w-3 h-3 rounded bg-blue-500"></div>
+                                        <span>سرمایه در گردش (کالای موجود در قفسه‌ها)</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-xs text-slate-600">
+                                        <div className="w-3 h-3 rounded bg-orange-400"></div>
+                                        <span>سرمایه در بازار (طلب از مشتریان)</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+                return (
+                    <div>
+                        <button onClick={() => handlePrintReport('ترازنامه مالی و سرمایه', financialReportContent)} className="flex items-center gap-2 mb-4 px-4 py-2 bg-slate-200 rounded-md text-slate-700 hover:bg-slate-300 transition-colors"><PrintIcon /> چاپ ترازنامه</button>
+                        {financialReportContent}
                     </div>
                 );
             case 'employees': 
@@ -442,8 +542,9 @@ const Reports: React.FC = () => {
                 <div className="flex border-b border-gray-200/60 p-2 bg-white/40 rounded-t-2xl flex-wrap">
                     <button onClick={() => setActiveTab('sales')} className={`py-3 px-6 font-bold text-lg rounded-lg ${activeTab === 'sales' ? 'bg-white shadow-md text-blue-600' : 'text-slate-600'}`}>فروش و سودآوری</button>
                     <button onClick={() => setActiveTab('inventory')} className={`py-3 px-6 font-bold text-lg rounded-lg ${activeTab === 'inventory' ? 'bg-white shadow-md text-blue-600' : 'text-slate-600'}`}>انبار و موجودی</button>
-                    <button onClick={() => setActiveTab('employees')} className={`py-3 px-6 font-bold text-lg rounded-lg ${activeTab === 'employees' ? 'bg-white shadow-md text-blue-600' : 'text-slate-600'}`}>فعالیت کارمندان</button>
+                    <button onClick={() => setActiveTab('financial_position')} className={`py-3 px-6 font-bold text-lg rounded-lg ${activeTab === 'financial_position' ? 'bg-white shadow-md text-blue-600' : 'text-slate-600'}`}>ترازنامه مالی (سرمایه)</button>
                     <button onClick={() => setActiveTab('accounts')} className={`py-3 px-6 font-bold text-lg rounded-lg ${activeTab === 'accounts' ? 'bg-white shadow-md text-blue-600' : 'text-slate-600'}`}>حساب‌ها و وصولی</button>
+                    <button onClick={() => setActiveTab('employees')} className={`py-3 px-6 font-bold text-lg rounded-lg ${activeTab === 'employees' ? 'bg-white shadow-md text-blue-600' : 'text-slate-600'}`}>فعالیت کارمندان</button>
                 </div>
                 <div className="p-6">
                     {renderContent()}

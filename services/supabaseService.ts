@@ -9,6 +9,7 @@ import type {
 
 // --- Helper Helpers for Data Mapping (Database Snake_case to App CamelCase) ---
 
+// FIX: Mapped snake_case database fields to camelCase StoreSettings interface properties.
 const mapSettings = (data: any): StoreSettings => ({
     storeName: data.store_name,
     address: data.address || '',
@@ -25,6 +26,7 @@ const mapRole = (data: any): Role => ({
     permissions: data.permissions || []
 });
 
+// FIX: Mapped role_id from database to roleId in User interface.
 const mapUser = (data: any): User => ({
     id: data.id,
     username: data.username,
@@ -32,6 +34,7 @@ const mapUser = (data: any): User => ({
     roleId: data.role_id
 });
 
+// FIX: Mapped snake_case database fields to camelCase ProductBatch interface properties.
 const mapProduct = (data: any): Product => ({
     id: data.id,
     name: data.name,
@@ -263,7 +266,7 @@ export const api = {
     addCustomer: async (c: any) => { const id = crypto.randomUUID(); await supabase.from('customers').insert({id, ...c}); return {...c, id, balance: 0}; },
     deleteCustomer: async (id: string) => { const { error } = await supabase.from('customers').delete().eq('id', id); if (error) throw error; },
     
-    addSupplier: async (s: any) => { const id = crypto.randomUUID(); await supabase.from('suppliers').insert({id, name: s.name, contact_person: s.contactPerson, phone: s.phone}); return {...s, id, balance: 0}; },
+    addSupplier: async (s: any) => { const id = crypto.randomUUID(); await supabase.from('suppliers').insert({id, name: s.name, contact_person: s.contact_person, phone: s.phone}); return {...s, id, balance: 0}; },
     deleteSupplier: async (id: string) => { const { error } = await supabase.from('suppliers').delete().eq('id', id); if (error) throw error; },
 
     addEmployee: async (e: any) => { const id = crypto.randomUUID(); await supabase.from('employees').insert({id, name: e.name, position: e.position, monthly_salary: e.monthlySalary}); return {...e, id, balance: 0}; },
@@ -502,6 +505,7 @@ export const api = {
         if (iError) throw iError;
 
         // We store items in Base Currency (calculated in AppContext before calling this)
+        // FIX: Changed item.lot_number to item.lotNumber to match the PurchaseInvoiceItem interface.
         const itemsData = invoice.items.map(item => ({
             invoice_id: invoice.id,
             product_id: item.productId,
@@ -545,10 +549,36 @@ export const api = {
     updatePurchase: async (
         invoiceId: string, 
         newInvoiceData: PurchaseInvoice, 
-        newBatches: any[], 
         supplierUpdate?: {id: string, oldAmount: number, newAmount: number}
     ) => {
-        // 1. Update Header
+        // 1. Fetch OLD items to revert stock
+        const { data: oldItems } = await supabase
+            .from('purchase_invoice_items')
+            .select('*')
+            .eq('invoice_id', invoiceId);
+        
+        if (oldItems) {
+            for (const item of oldItems) {
+                // Find matching batch
+                const { data: batches } = await supabase
+                    .from('product_batches')
+                    .select('*')
+                    .eq('product_id', item.product_id)
+                    .eq('lot_number', item.lot_number);
+                
+                if (batches && batches.length > 0) {
+                    const batch = batches[0];
+                    const newStock = Math.max(0, batch.stock - item.quantity);
+                    // If the item is removed, and stock is now 0, do we delete? 
+                    // To stay safe and keep history, we just update to 0. 
+                    // But if user explicitly wanted it "removed", they might want it gone.
+                    // For now, simple revert:
+                    await supabase.from('product_batches').update({ stock: newStock }).eq('id', batch.id);
+                }
+            }
+        }
+
+        // 2. Update Header
         await supabase.from('purchase_invoices').update({
              supplier_id: newInvoiceData.supplierId,
              invoice_number: newInvoiceData.invoiceNumber,
@@ -558,8 +588,9 @@ export const api = {
              exchange_rate: newInvoiceData.exchangeRate
         }).eq('id', invoiceId);
 
-        // 2. Re-create items
+        // 3. Re-create items and Apply new stock/prices
         await supabase.from('purchase_invoice_items').delete().eq('invoice_id', invoiceId);
+        
         const itemsData = newInvoiceData.items.map(item => ({
             invoice_id: invoiceId,
             product_id: item.productId,
@@ -571,21 +602,39 @@ export const api = {
         }));
         await supabase.from('purchase_invoice_items').insert(itemsData);
 
-        // 3. Add NEW batches (For edit, we assume we add new ones if not exist, existing ones are manual)
-        if (newBatches.length > 0) {
-             const batchesData = newBatches.map(b => ({
-                id: b.id,
-                product_id: b.productId, // CamelCase
-                lot_number: b.lotNumber,
-                stock: b.stock,
-                purchase_price: b.purchasePrice,
-                purchase_date: b.purchaseDate,
-                expiry_date: b.expiryDate
-             }));
-             await supabase.from('product_batches').insert(batchesData);
+        // 4. Update/Upsert Batches with NEW quantities and prices
+        for (const item of newInvoiceData.items) {
+            const { data: existingBatches } = await supabase
+                .from('product_batches')
+                .select('*')
+                .eq('product_id', item.productId)
+                .eq('lot_number', item.lotNumber);
+            
+            if (existingBatches && existingBatches.length > 0) {
+                const b = existingBatches[0];
+                await supabase.from('product_batches').update({
+                    stock: b.stock + item.quantity,
+                    purchase_price: item.purchasePrice, // SYNC PRICE
+                    expiry_date: item.expiry_date
+                }).eq('id', b.id);
+            } else {
+                // Completely new product/lot added to invoice during edit
+                await supabase.from('product_batches').insert({
+                    id: crypto.randomUUID(),
+                    product_id: item.productId,
+                    lot_number: item.lotNumber,
+                    stock: item.quantity,
+                    purchase_price: item.purchasePrice,
+                    purchase_date: newInvoiceData.timestamp,
+                    expiry_date: item.expiryDate
+                });
+            }
         }
+        
+        // Cleanup: If a batch has 0 stock AND is not used in ANY invoice anymore, we could delete it.
+        // But for now, updating price/qty is the priority.
 
-        // 4. Update Supplier Financials
+        // 5. Update Supplier Financials
         if (supplierUpdate) {
             const { data: supplier } = await supabase.from('suppliers').select('balance').eq('id', supplierUpdate.id).single();
             if (supplier) {
@@ -613,6 +662,7 @@ export const api = {
             timestamp: returnInvoice.timestamp
         });
 
+        // FIX: Changed item.lot_number to item.lotNumber to match the PurchaseInvoiceItem interface.
         const itemsData = returnInvoice.items.map(item => ({
             invoice_id: returnInvoice.id,
             product_id: item.productId,
@@ -760,6 +810,7 @@ export const api = {
             }));
             await supabase.from('products').insert(productsData);
 
+            // FIX: Changed b.purchase_date to b.purchaseDate to match the ProductBatch interface.
             const batchesData = data.products.flatMap(p => p.batches.map(b => ({
                 id: b.id, product_id: p.id, lot_number: b.lotNumber, stock: b.stock, purchase_price: b.purchasePrice, purchase_date: b.purchaseDate, expiry_date: b.expiryDate
             })));

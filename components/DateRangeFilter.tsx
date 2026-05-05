@@ -12,9 +12,14 @@ const DateRangeFilter: React.FC<DateRangeFilterProps> = ({ onFilterChange }) => 
     const [filterType, setFilterType] = useState<FilterType>('today');
     
     const currentJalaliYear = getJalaliDate(new Date()).jy;
+    const years = Array.from({ length: 26 }, (_, i) => (currentJalaliYear - 5) + i); // From 5 years ago to 20 years ahead for professional coverage
 
-    const [startDate, setStartDate] = useState({ day: 1, month: 1 });
-    const [endDate, setEndDate] = useState({ day: getJalaliDate(new Date()).jd, month: getJalaliDate(new Date()).jm });
+    const [startDate, setStartDate] = useState({ day: 1, month: 1, year: currentJalaliYear });
+    const [endDate, setEndDate] = useState({ 
+        day: getJalaliDate(new Date()).jd, 
+        month: getJalaliDate(new Date()).jm, 
+        year: currentJalaliYear 
+    });
 
     useEffect(() => {
         const now = new Date();
@@ -33,14 +38,14 @@ const DateRangeFilter: React.FC<DateRangeFilterProps> = ({ onFilterChange }) => 
                 end.setHours(23, 59, 59, 999);
                 break;
             case 'custom':
-                start = jalaliToDate(currentJalaliYear, startDate.month, startDate.day);
+                start = jalaliToDate(startDate.year, startDate.month, startDate.day);
                 start.setHours(0, 0, 0, 0);
-                end = jalaliToDate(currentJalaliYear, endDate.month, endDate.day);
+                end = jalaliToDate(endDate.year, endDate.month, endDate.day);
                 end.setHours(23, 59, 59, 999);
                 break;
         }
         onFilterChange(start, end);
-    }, [filterType, startDate, endDate, onFilterChange, currentJalaliYear]);
+    }, [filterType, startDate, endDate, onFilterChange]);
 
     const handleFilterClick = (type: FilterType) => {
         setFilterType(type);
@@ -54,36 +59,51 @@ const DateRangeFilter: React.FC<DateRangeFilterProps> = ({ onFilterChange }) => 
                 <button onClick={() => handleFilterClick('custom')} className={`px-3 py-1.5 rounded-md text-sm font-semibold ${filterType === 'custom' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-600'}`}>بازه سفارشی</button>
             </div>
             {filterType === 'custom' && (
-                <div className="flex items-center gap-2 text-sm">
+                <div className="flex flex-wrap items-center gap-2 text-sm">
                     <span className="font-semibold">از:</span>
                     <input
                         type="number"
                         value={startDate.day}
                         onChange={e => setStartDate(p => ({ ...p, day: parseInt(e.target.value, 10) || 1 }))}
-                        className="w-16 p-2 border rounded-md"
+                        className="w-14 p-2 border rounded-md"
                         min="1" max="31"
                     />
                     <select
                         value={startDate.month}
                         onChange={e => setStartDate(p => ({ ...p, month: parseInt(e.target.value, 10) }))}
-                        className="p-2 border rounded-md bg-white"
+                        className="p-2 border rounded-md bg-white min-w-[90px]"
                     >
                         {JALALI_MONTHS.map(m => <option key={m.value} value={m.value}>{m.name}</option>)}
                     </select>
-                    <span className="font-semibold mx-2">تا:</span>
+                    <select
+                        value={startDate.year}
+                        onChange={e => setStartDate(p => ({ ...p, year: parseInt(e.target.value, 10) }))}
+                        className="p-2 border rounded-md bg-white"
+                    >
+                        {years.map(y => <option key={y} value={y}>{y}</option>)}
+                    </select>
+                    
+                    <span className="font-semibold mx-1">تا:</span>
                     <input
                         type="number"
                         value={endDate.day}
                         onChange={e => setEndDate(p => ({ ...p, day: parseInt(e.target.value, 10) || 1 }))}
-                        className="w-16 p-2 border rounded-md"
+                        className="w-14 p-2 border rounded-md"
                         min="1" max="31"
                     />
                     <select
                         value={endDate.month}
                         onChange={e => setEndDate(p => ({ ...p, month: parseInt(e.target.value, 10) }))}
-                        className="p-2 border rounded-md bg-white"
+                        className="p-2 border rounded-md bg-white min-w-[90px]"
                     >
                         {JALALI_MONTHS.map(m => <option key={m.value} value={m.value}>{m.name}</option>)}
+                    </select>
+                    <select
+                        value={endDate.year}
+                        onChange={e => setEndDate(p => ({ ...p, year: parseInt(e.target.value, 10) }))}
+                        className="p-2 border rounded-md bg-white"
+                    >
+                        {years.map(y => <option key={y} value={y}>{y}</option>)}
                     </select>
                 </div>
             )}
